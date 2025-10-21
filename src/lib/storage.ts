@@ -50,25 +50,33 @@ const transformUsuarioToUser = (usuario: any, vinculacoes: any[] = []): User => 
 // UBS operations
 export const getUBS = async (): Promise<UBS[]> => {
   try {
+    console.log('Iniciando busca por UBS...');
     const { data: postos, error } = await supabase
       .from('postos')
       .select('*');
 
-    if (error) throw error;
+    if (error) {
+      console.error('Erro ao buscar postos:', error);
+      throw error;
+    }
+    console.log('Postos encontrados:', postos);
 
-    const { data: pdfs } = await supabase
+    const { data: pdfs, error: pdfError } = await supabase
       .from('arquivos_pdf')
       .select('*');
+    if (pdfError) console.error('Erro ao buscar PDFs:', pdfError);
 
-    const { data: usuarios } = await supabase
+    const { data: usuarios, error: usuariosError } = await supabase
       .from('usuarios')
       .select('*');
+    if (usuariosError) console.error('Erro ao buscar usuários:', usuariosError);
 
-    const { data: vinculacoes } = await supabase
+    const { data: vinculacoes, error: vinculacoesError } = await supabase
       .from('usuario_posto')
       .select('*');
+    if (vinculacoesError) console.error('Erro ao buscar vinculações:', vinculacoesError);
 
-    return (postos || []).map(posto => {
+    const result = (postos || []).map(posto => {
       const pdf = pdfs?.find(p => p.posto_id === posto.id);
 
       // Encontra todos os responsáveis vinculados a este posto
@@ -101,8 +109,10 @@ export const getUBS = async (): Promise<UBS[]> => {
         updatedAt: posto.atualizado_em || new Date().toISOString()
       };
     });
+    console.log('UBS processadas:', result);
+    return result;
   } catch (error) {
-    console.error('Erro ao buscar UBS:', error);
+    console.error('Erro fatal ao buscar UBS:', error);
     return [];
   }
 };
