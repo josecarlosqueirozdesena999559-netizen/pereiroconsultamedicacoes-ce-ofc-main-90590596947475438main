@@ -260,52 +260,37 @@ const UserDashboard = () => {
       </div>
 
       <Tabs defaultValue="management" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-2 h-auto p-1">
+        <TabsList className="grid w-full grid-cols-1 h-auto p-1"> {/* Apenas uma aba agora */}
           <TabsTrigger value="management" className="flex items-center gap-2 py-2">
             <Upload className="h-4 w-4" />
             Gestão de PDFs
-          </TabsTrigger>
-          <TabsTrigger value="alerts" className="flex items-center gap-2 py-2 relative">
-            <MessageSquare className="h-4 w-4" />
-            Comunicados
-            {allAlerts.filter(alert => localStorage.getItem(`dismissed_alert_${alert.id}`) !== 'true').length > 0 && (
-              <span className="absolute top-1 right-1 block h-2 w-2 rounded-full bg-destructive ring-2 ring-background" />
-            )}
           </TabsTrigger>
         </TabsList>
 
         {/* --- ABA: GESTÃO DE PDFS --- */}
         <TabsContent value="management" className="space-y-6">
-          {/* Aviso informativo */}
-          <Card className="border-l-4 border-primary bg-primary/5">
-            <CardHeader className="flex flex-row items-center gap-2">
-              <Info className="h-5 w-5 text-primary" />
-              <div>
-                <CardTitle className="text-primary">Como Atualizar o PDF</CardTitle>
-                <CardDescription>Orientações formais para evitar erros</CardDescription>
-              </div>
-            </CardHeader>
-            <CardContent className="text-sm text-muted-foreground space-y-2">
-              <ol className="list-decimal list-inside space-y-1">
-                <li>
-                  Clique no botão <strong>“Atualizar PDF”</strong> e selecione o PDF atualizado do seu estoque.
-                </li>
-                <li>
-                  Ao atualizar, <strong>aguarde a notificação</strong> com a mensagem <em>“PDF atualizado com sucesso”</em>.
-                </li>
-                <li>
-                  Utilize o botão <strong>“Baixar PDF Atual”</strong> para confirmar se o arquivo está correto, verificando a <strong>data e hora do envio</strong>.
-                </li>
-                <li>
-                  A marcação de <strong>“Atualizado pela manhã”</strong> ou <strong>“Atualizado pela tarde”</strong> será feita <u>automaticamente após o upload</u>. O primeiro upload marca a manhã, o segundo marca a tarde.
-                </li>
-                <li>
-                  Após seguir esses passos, o sistema estará devidamente atualizado e funcionando corretamente.
-                </li>
-              </ol>
-            </CardContent>
-          </Card>
-          {/* Fim do aviso */}
+          {/* Avisos e Comunicados (movidos para cá) */}
+          <div className="space-y-4">
+            {allAlerts.length === 0 ? (
+              <Card className="border-dashed">
+                <CardContent className="flex flex-col items-center justify-center py-8">
+                  <Info className="h-8 w-8 text-muted-foreground mb-3" />
+                  <p className="text-muted-foreground text-center">Nenhum comunicado ativo no momento.</p>
+                </CardContent>
+              </Card>
+            ) : (
+              allAlerts.map(alert => (
+                <DismissibleAlert
+                  key={alert.id}
+                  id={alert.id}
+                  title={alert.title}
+                  description={alert.description}
+                  variant={alert.variant}
+                />
+              ))
+            )}
+          </div>
+          {/* Fim dos avisos */}
 
           {ubsList.length === 0 ? (
             <Card>
@@ -351,7 +336,12 @@ const UserDashboard = () => {
                         <Alert className={pdfUpdatedToday ? "border-primary/20 bg-primary/5" : "border-amber-500/20 bg-amber-500/5"}>
                           <AlertCircle className={`h-4 w-4 ${pdfUpdatedToday ? 'text-primary' : 'text-amber-600'}`} />
                           <AlertTitle className={`font-semibold text-sm ${pdfUpdatedToday ? 'text-primary' : 'text-amber-700'}`}>
-                            {pdfUpdatedToday ? 'Pronto para Próxima Atualização' : 'Atenção'}
+                            {pdfUpdatedToday 
+                              ? manhaChecked && !tardeChecked
+                                ? 'O PDF foi atualizado hoje pela manhã. Faça um novo upload para registrar a atualização da tarde.'
+                                : 'O PDF ainda não foi atualizado hoje. Faça o upload para registrar a atualização da manhã.'
+                              : 'O PDF ainda não foi atualizado hoje. Faça o upload para registrar a atualização da manhã.'
+                            }
                           </AlertTitle>
                           <AlertDescription className={`text-xs ${pdfUpdatedToday ? 'text-primary/90' : 'text-amber-600/90'}`}>
                             {pdfUpdatedToday 
@@ -462,38 +452,6 @@ const UserDashboard = () => {
               })}
             </div>
           )}
-        </TabsContent>
-
-        {/* --- ABA: COMUNICADOS --- */}
-        <TabsContent value="alerts" className="space-y-4">
-          <h2 className="text-2xl font-semibold flex items-center gap-2">
-            <MessageSquare className="h-6 w-6 text-primary" />
-            Avisos e Comunicados
-          </h2>
-          <p className="text-muted-foreground text-sm">
-            Avisos importantes do administrador. Clique no 'X' para dispensar permanentemente.
-          </p>
-
-          <div className="space-y-4">
-            {allAlerts.length === 0 ? (
-              <Card className="border-dashed">
-                <CardContent className="flex flex-col items-center justify-center py-8">
-                  <Info className="h-8 w-8 text-muted-foreground mb-3" />
-                  <p className="text-muted-foreground text-center">Nenhum comunicado ativo no momento.</p>
-                </CardContent>
-              </Card>
-            ) : (
-              allAlerts.map(alert => (
-                <DismissibleAlert
-                  key={alert.id}
-                  id={alert.id}
-                  title={alert.title}
-                  description={alert.description}
-                  variant={alert.variant}
-                />
-              ))
-            )}
-          </div>
         </TabsContent>
       </Tabs>
     </div>
