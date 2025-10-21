@@ -85,7 +85,7 @@ export const getUBS = async (): Promise<UBS[]> => {
       let responsavelNomes: string[] = [];
       
       if (responsavelVinculos.length > 0) {
-        responsaveisNomes = responsavelVinculos
+        responsavelNomes = responsavelVinculos // Corrigido de 'responsaveisNomes' para 'responsavelNomes'
           .map(vinc => usuarios?.find(u => u.id === vinc.user_id && u.tipo === 'responsavel')?.nome)
           .filter((name): name is string => !!name);
       }
