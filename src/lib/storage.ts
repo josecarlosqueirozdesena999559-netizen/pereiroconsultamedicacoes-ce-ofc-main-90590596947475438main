@@ -77,7 +77,7 @@ export const getUBS = async (): Promise<UBS[]> => {
       let responsavelNomes: string[] = [];
       
       if (responsavelVinculos.length > 0) {
-        responsavelNomes = responsavelVinculos
+        responsaveisNomes = responsavelVinculos
           .map(vinc => usuarios?.find(u => u.id === vinc.user_id && u.tipo === 'responsavel')?.nome)
           .filter((name): name is string => !!name);
       }
@@ -255,7 +255,7 @@ export const addUser = async (user: Omit<User, 'id' | 'createdAt' | 'updatedAt'>
 export const updateUser = async (id: string, updates: Partial<User>): Promise<User | null> => {
   try {
     const updateData: any = {};
-    if (updates.login) updateData.email = updates.login;
+    if (updates.login) updateData.email = updates.login; // Adicionado para permitir a atualização do email
     if (updates.nome) updateData.nome = updates.nome;
     if (updates.senha) updateData.senha = updates.senha; // Atualizando senha em texto simples
     if (updates.tipo) updateData.tipo = updates.tipo;

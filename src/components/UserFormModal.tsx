@@ -38,7 +38,7 @@ const UserFormModal: React.FC<UserFormModalProps> = ({ isOpen, setIsOpen, editin
         ubsVinculadas: editingUser.ubsVinculadas
       });
     } else {
-      setUserForm(initialFormState);
+      setUbsForm(initialFormState);
     }
   }, [editingUser, isOpen]);
 
@@ -53,6 +53,7 @@ const UserFormModal: React.FC<UserFormModalProps> = ({ isOpen, setIsOpen, editin
           nome: userForm.nome,
           tipo: userForm.tipo,
           ubsVinculadas: userForm.ubsVinculadas,
+          login: userForm.login, // Adicionado para permitir a atualização do email
           // Inclui a senha apenas se foi preenchida
           ...(userForm.senha && { senha: userForm.senha })
         });
@@ -101,7 +102,7 @@ const UserFormModal: React.FC<UserFormModalProps> = ({ isOpen, setIsOpen, editin
           </DialogTitle>
           <DialogDescription>
             {editingUser 
-              ? 'Edite o nome, tipo e, opcionalmente, a senha do usuário.' 
+              ? 'Edite o nome, tipo, email e, opcionalmente, a senha do usuário.' 
               : 'Crie um novo usuário para acesso ao Dashboard.'
             }
           </DialogDescription>
@@ -126,7 +127,7 @@ const UserFormModal: React.FC<UserFormModalProps> = ({ isOpen, setIsOpen, editin
                 value={userForm.login}
                 onChange={(e) => setUserForm({...userForm, login: e.target.value})}
                 placeholder="usuario@exemplo.com"
-                disabled={!!editingUser} // Não permite editar o login
+                // Removido o disabled para permitir a edição do email
                 required
               />
             </div>
