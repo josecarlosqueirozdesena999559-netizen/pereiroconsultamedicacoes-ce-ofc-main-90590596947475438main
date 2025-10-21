@@ -224,6 +224,12 @@ const UserDashboard = () => {
       description: 'O sistema só permite o upload de arquivos PDF com tamanho máximo de 10MB. Certifique-se de que o arquivo está correto antes de enviar.',
       variant: 'warning' as const,
     },
+    {
+      id: 'upload_rule',
+      title: 'Função de pdf errado',
+      description: 'Quando fizer o processo de atualizar pdf e estiver errado, solicite a troca clicando no botão no respectivo momento.',
+      variant: 'warning' as const,
+    },
   ];
 
   // Avisos dinâmicos (Correções Aprovadas)
@@ -368,25 +374,25 @@ const UserDashboard = () => {
                             htmlFor={`${ubs.id}-manha`}
                             className={`text-sm font-medium leading-none peer-disabled:cursor-not-allowed`}
                           >
-                            Atualizado pela manhã (via upload)
-                          </label>
+                            Atualizado pela manhã           
+                          </label>  
                         </div>
 
                         <div className="flex items-center space-x-2">
                           <Checkbox
-                            id={`${ubs.id}-tarde`}
-                            checked={tardeChecked}
-                            onCheckedChange={() => toggleCheck(ubs.id, 'tarde')}
+                            id={`${ubs.id}-tarde`} 
+                            checked={tardeChecked} 
+                            onCheckedChange={() => toggleCheck(ubs.id, 'tarde')} 
                             disabled={true}
                           />
                           <label
                             htmlFor={`${ubs.id}-tarde`}
                             className={`text-sm font-medium leading-none peer-disabled:cursor-not-allowed`}
                           >
-                            Atualizado pela tarde (via upload)
-                          </label>
+                            Atualizado pela tarde 
+                          </label>  
                         </div>
-
+ 
                         {isComplete(ubs.id) && (
                           <div className="flex items-center gap-2 text-green-600 pt-1">
                             <CheckCircle2 className="h-4 w-4" />
