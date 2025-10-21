@@ -38,7 +38,7 @@ const UserFormModal: React.FC<UserFormModalProps> = ({ isOpen, setIsOpen, editin
         ubsVinculadas: editingUser.ubsVinculadas
       });
     } else {
-      setUbsForm(initialFormState);
+      setUserForm(initialFormState); // Corrigido de setUbsForm para setUserForm
     }
   }, [editingUser, isOpen]);
 
