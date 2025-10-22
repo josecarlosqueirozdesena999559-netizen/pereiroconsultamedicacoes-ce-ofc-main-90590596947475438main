@@ -221,12 +221,6 @@ const UpdateReportPDF: React.FC<UpdateReportPDFProps> = ({
         .stat .big{font-size:18px;font-weight:800;margin:0}
         .stat.ok{background:var(--green-100);border-color:var(--green-200)}
         .stat.err{background:var(--red-100);border-color:#f8d7da}
-        .progress{
-          height:10px;background:var(--gray-200);
-          border-radius:999px;overflow:hidden;margin:2px 0 10px 0;border:1px solid var(--gray-300);
-        }
-        .bar{height:100%;background:var(--green-600)}
-        .progress-row{display:flex;justify-content:space-between;font-size:11px;margin-bottom:8px}
         table{width:100%;border-collapse:collapse;margin-top:8px;font-size:11px}
         th,td{border:1px solid var(--gray-300);padding:6px;text-align:left}
         th{background:var(--green-200);color:var(--green-900)}
@@ -234,6 +228,7 @@ const UpdateReportPDF: React.FC<UpdateReportPDFProps> = ({
         .no{font-weight:700;color:#b00020}
         .badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;background:var(--green-100);border:1px solid var(--green-200);color:var(--green-700);font-weight:700}
         .footer{margin-top:18px;font-size:10px;opacity:.8;text-align:right}
+        .calc-explainer{font-size:11px; opacity:.9; margin-top:6px}
       </style>
     `);
     // =======================================
@@ -243,7 +238,8 @@ const UpdateReportPDF: React.FC<UpdateReportPDFProps> = ({
     w.print();
   };
 
-  if (allBusinessDates.length === 0) {
+  const { length: totalDiasUteis } = allBusinessDates;
+  if (totalDiasUteis === 0) {
     return (
       <Button disabled variant="outline" className="w-full">
         <Download className="h-4 w-4 mr-2" />
@@ -252,8 +248,7 @@ const UpdateReportPDF: React.FC<UpdateReportPDFProps> = ({
     );
   }
 
-  const totalUbs = ubsSummaryList.length;
-  const totalDiasUteis = allBusinessDates.length;
+  const totalUbs = Object.keys(summary).length;
   const agoraBR = new Date().toLocaleString('pt-BR', { timeZone: 'America/Fortaleza' });
 
   return (
@@ -305,7 +300,7 @@ const UpdateReportPDF: React.FC<UpdateReportPDFProps> = ({
         </div>
 
         {/* Cartões por UBS */}
-        {ubsSummaryList.map((u, idx) => {
+        {Object.values(summary).map((u, idx) => {
           const pct = u.completionPct;
           return (
             <div className="ubs-card" key={idx}>
@@ -346,13 +341,14 @@ const UpdateReportPDF: React.FC<UpdateReportPDFProps> = ({
                 </div>
               </div>
 
-              {/* Barra de progresso */}
-              <div className="progress-row">
-                <div className="muted">Progresso de Conclusão</div>
-                <div className="muted">{pct}%</div>
-              </div>
-              <div className="progress">
-                <div className="bar" style={{ width: `${pct}%` }} />
+              {/* Apenas porcentagem + explicação do cálculo (sem barra) */}
+              <div className="calc-explainer">
+                <b>Percentual de conclusão:</b> {pct}% — {u.daysCompleted} de {u.totalDays} dia(s) com
+                atualização <i>manhã</i> <u>e</u> <i>tarde</i>.<br />
+                <small>
+                  <b>Fórmula:</b> (dias completos ÷ dias úteis) × 100,
+                  onde “dia completo” = marcou manhã <u>e</u> tarde no mesmo dia.
+                </small>
               </div>
 
               {/* Tabela de detalhamento diário */}
