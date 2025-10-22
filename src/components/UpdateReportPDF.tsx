@@ -164,7 +164,7 @@ function buildReportHTML(params: {
           <div><span class="k">Dias úteis</span><span class="v">${u.totalDays}</span></div>
           <div><span class="k">Manhã</span><span class="v">${u.updatedManha}/${u.totalDays}</span></div>
           <div><span class="k">Tarde</span><span class="v">${u.updatedTarde}/${u.totalDays}</span></div>
-          <div><span class="k">Completude</span><span class="v">${u.completionRate}%</span></div>
+          <div><span class="k">Cumprimento</span><span class="v">${u.completionRate}%</span></div>
           <div><span class="k">Dias perdidos</span><span class="v ${u.daysMissed > 0 ? 'neg' : ''}">${u.daysMissed}</span></div>
         </div>
       </div>
@@ -181,8 +181,8 @@ function buildReportHTML(params: {
         <tbody>
           ${allBusinessDates.map((d) => {
             const det = u.details[d];
-            const m = det?.manha ? 'Sim' : 'Não';
-            const t = det?.tarde ? 'Sim' : 'Não';
+            const m = det?.manha ? '✓' : '–';
+            const t = det?.tarde ? '✓' : '–';
             return `
               <tr>
                 <td>${esc(formatBR(d))}</td>
@@ -214,7 +214,7 @@ function buildReportHTML(params: {
     .watermark span{ font-size:120px; font-weight:800; color:rgba(0,0,0,.05); transform:rotate(-24deg); letter-spacing:8px; }
 
     header{ display:flex; align-items:center; gap:14px; }
-    .logo{ width:56px; height:56px; border-radius:12px; border:1px solid var(--line); display:grid; place-items:center; font-weight:800; }
+    .brand-img{ height:28px; display:block; }
     .hgroup h1{ margin:0; font-size:20px; }
     .hgroup p{ margin:2px 0 0; color:var(--muted); font-size:12px; }
 
@@ -229,7 +229,7 @@ function buildReportHTML(params: {
     table{ width:100%; border-collapse:collapse; margin-top:10px; table-layout:fixed; }
     thead{ display:table-header-group; }
     th,td{ border:1px solid var(--line); padding:8px; font-size:12px; vertical-align:top; }
-    th{ background:#f8f9fb; text-align:left; }
+    th{ background:#f8f9fb; text-align:left; text-transform:uppercase; letter-spacing:.02em; font-size:11px; border-top:2px solid #c3c6cc; }
     tbody tr:nth-child(even){ background:#fbfbfb; }
     td.ok{ font-weight:700; }
     .neg{ font-weight:700; }
@@ -252,7 +252,7 @@ function buildReportHTML(params: {
   ${confidential ? '<div class="watermark"><span>CONFIDENCIAL</span></div>' : ''}
 
   <header>
-    <div class="logo">PM</div>
+    <img class="brand-img" src="/ChatGPT Image 23_09_2025, 07_28_12.png" alt="ConsultMed" />
     <div class="hgroup">
       <h1>${esc(orgTitle)}</h1>
       ${orgSubtitle ? `<p>${esc(orgSubtitle)}</p>` : ''}
@@ -270,7 +270,7 @@ function buildReportHTML(params: {
     <div class="kpi"><span class="k">Dias úteis no período</span><span class="v">${totalDias}</span></div>
     <div class="kpi"><span class="k">Registros manhã</span><span class="v">${totalManha}</span></div>
     <div class="kpi"><span class="k">Registros tarde</span><span class="v">${totalTarde}</span></div>
-    <div class="kpi"><span class="k">Completude média</span><span class="v">${médiaConclusão}%</span></div>
+    <div class="kpi"><span class="k">Índice de cumprimento</span><span class="v">${médiaConclusão}%</span></div>
   </section>
 
   ${perUBS}
@@ -294,7 +294,7 @@ const UpdateReportPDF: React.FC<UpdateReportPDFProps> = ({
   endDate,
   landscape = true,
   orgTitle = 'Prefeitura Municipal',
-  orgSubtitle = 'Secretaria de Saúde e Saneamento',
+  orgSubtitle = 'ConsultMed',
   confidentialWatermark = false,
 }) => {
   const { summary, allBusinessDates } = summarizeHistory(history, ubsList, usersList, startDate, endDate);
