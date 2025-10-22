@@ -194,15 +194,4 @@ All colors MUST be HSL.
   animation: slide-in-from-bottom 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* --- ADMIN: Remover o Card e o botão "Exportar Relatório de Período" --- */
-@supports selector(:has(*)) {
-  /* Esconde o Card inteiro que contém o ícone de download (lucide-react) */
-  .shadow-card:has(svg[data-lucide="download"]) {
-    display: none !important;
-  }
 
-  /* Garante que também desapareça o botão individual de exportação (caso exista fora do Card) */
-  button:has(svg[data-lucide="download"]) {
-    display: none !important;
-  }
-}
