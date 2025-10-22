@@ -1,0 +1,78 @@
+import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
+
+type Audience = "all" | "admin" | "useradmin";
+type AType = "info" | "success" | "warning" | "danger";
+
+export type Announcement = {
+  id: string;
+  version?: string;
+  title: string;
+  message: string;
+  type?: AType;
+  audience?: Audience;
+  startAt?: string;
+  endAt?: string;
+  requireAck?: boolean;
+  cta?: { label: string; href: string };
+};
+
+type AnnouncementsResponse = { announcements: Announcement[] };
+type Ctx = {
+  items: Announcement[];
+  dismiss: (id: string) => void;
+  isDismissed: (id: string) => boolean;
+  role: Audience;
+};
+
+const AnnCtx = createContext<Ctx | null>(null);
+const LS_KEY = (id: string) => `announcement:${id}:dismissed`;
+
+function inWindow(a: Announcement, now = new Date()) {
+  const s = a.startAt ? new Date(a.startAt) : null;
+  const e = a.endAt ? new Date(a.endAt) : null;
+  return (!s || now >= s) && (!e || now <= e);
+}
+function matchAudience(a: Announcement, role: Audience) {
+  const target = a.audience ?? "all";
+  if (target === "all") return true;
+  return target === role;
+}
+
+export function AnnouncementProvider({
+  children,
+  role = "all",
+}: {
+  children: React.ReactNode;
+  role?: Audience;
+}) {
+  const [raw, setRaw] = useState<Announcement[]>([]);
+
+  useEffect(() => {
+    fetch(`/announcements.json?_=${Date.now()}`, { cache: "no-store" })
+      .then(r => r.json())
+      .then((json: AnnouncementsResponse) => setRaw(json.announcements || []))
+      .catch(err => console.error("Erro ao carregar announcements.json:", err));
+  }, []);
+
+  const items = useMemo(() => {
+    const now = new Date();
+    return raw
+      .filter(a => inWindow(a, now) && matchAudience(a, role))
+      .filter(a => !localStorage.getItem(LS_KEY(a.id)));
+  }, [raw, role]);
+
+  const dismiss = (id: string) => localStorage.setItem(LS_KEY(id), "1");
+  const isDismissed = (id: string) => !!localStorage.getItem(LS_KEY(id));
+
+  return (
+    <AnnCtx.Provider value={{ items, dismiss, isDismissed, role }}>
+      {children}
+    </AnnCtx.Provider>
+  );
+}
+
+export function useAnnouncements() {
+  const ctx = useContext(AnnCtx);
+  if (!ctx) throw new Error("useAnnouncements deve estar dentro de AnnouncementProvider");
+  return ctx;
+}
