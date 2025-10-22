@@ -126,10 +126,6 @@ const AdminDashboard = () => {
       const history = await getUpdateChecksHistory(startString, endString);
       setReportHistory(history);
       
-      toast({
-        title: "Dados carregados",
-        description: `Histórico de ${period === 'week' ? '7 dias' : '30 dias'} pronto para exportação.`,
-      });
     } catch (error) {
       toast({
         title: "Erro ao carregar histórico",
