@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Download } from 'lucide-react';
 import { UBS, User } from '@/types';
 import { UpdateCheckHistory } from '@/lib/storage';
-import { format, getDay, startOfDay, isBefore } from 'date-fns';
+import { format, getDay, startOfDay, isBefore, parse } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 interface UpdateReportPDFProps {
@@ -14,18 +14,26 @@ interface UpdateReportPDFProps {
   endDate: Date;
 }
 
-/** Formata data ISO(yyyy-mm-dd) -> dd/MM/yyyy */
-const formatDate = (dateString: string) =>
-  format(new Date(dateString), 'dd/MM/yyyy', { locale: ptBR });
+/** Formata datas de forma local:
+ * - string 'yyyy-MM-dd' (sem timezone) => parse local
+ * - Date => formata direto
+ */
+const formatDate = (value: string | Date) => {
+  const d =
+    typeof value === 'string'
+      ? parse(value, 'yyyy-MM-dd', new Date()) // evita UTC implícito
+      : value;
+  return format(d, 'dd/MM/yyyy', { locale: ptBR });
+};
 
-/** Gera somente dias úteis (seg-sex) no intervalo */
+/** Gera somente dias úteis (seg-sex) no intervalo (local) */
 const getBusinessDaysInRange = (start: Date, end: Date): string[] => {
   const dates: string[] = [];
   let currentDate = startOfDay(start);
   const endDate = startOfDay(end);
 
   while (isBefore(currentDate, endDate) || currentDate.getTime() === endDate.getTime()) {
-    const dow = getDay(currentDate); // 0 dom ... 6 sáb
+    const dow = getDay(currentDate); // 0 dom ... 6 sáb (local)
     if (dow >= 1 && dow <= 5) dates.push(format(currentDate, 'yyyy-MM-dd'));
     currentDate = new Date(currentDate.getTime() + 24 * 60 * 60 * 1000);
   }
@@ -81,7 +89,7 @@ const summarizeHistory = (
     const ubsSum = summary[check.ubs_id];
     if (!ubsSum) return;
 
-    const dateKey = check.data;
+    const dateKey = check.data; // 'yyyy-MM-dd'
     const user = usersList.find((u) => u.id === check.user_id)?.nome || 'Desconhecido';
     if (!ubsSum.details[dateKey]) ubsSum.details[dateKey] = { manha: false, tarde: false, user: '' };
 
@@ -246,7 +254,7 @@ const UpdateReportPDF: React.FC<UpdateReportPDFProps> = ({
 
   const totalUbs = ubsSummaryList.length;
   const totalDiasUteis = allBusinessDates.length;
-  const agoraBR = new Date().toLocaleString('pt-BR');
+  const agoraBR = new Date().toLocaleString('pt-BR', { timeZone: 'America/Fortaleza' });
 
   return (
     <>
@@ -269,7 +277,7 @@ const UpdateReportPDF: React.FC<UpdateReportPDFProps> = ({
             <div>
               <div className="muted">Período</div>
               <div>
-                <b>{formatDate(startDate.toISOString())}</b> a <b>{formatDate(endDate.toISOString())}</b>
+                <b>{formatDate(startDate)}</b> a <b>{formatDate(endDate)}</b>
               </div>
             </div>
             <div>
