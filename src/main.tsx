@@ -1,13 +1,18 @@
-import { createRoot } from "react-dom/client";
-import App from "./App.tsx";
-import "./index.css";
+import { AnnouncementProvider } from "@/announcement/AnnouncementProvider";
+import AnnouncementBar from "@/announcement/AnnouncementBar";
+import { useAuth } from "@/hooks/useAuth";
+import Router from "./Router"; // ou suas rotas/componentes principais
 
-// Força reload quando o Service Worker for atualizado
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.addEventListener('controllerchange', () => {
-    console.log('[SW] New service worker activated, reloading page...');
-    window.location.reload();
-  });
+function App() {
+  const { user } = useAuth();
+  const role = user?.tipo === "admin" ? "admin" : "useradmin";
+
+  return (
+    <AnnouncementProvider role={role}>
+      <AnnouncementBar />
+      <Router /> {/* ou o resto do seu app */}
+    </AnnouncementProvider>
+  );
 }
 
-createRoot(document.getElementById("root")!).render(<App />);
+export default App;
