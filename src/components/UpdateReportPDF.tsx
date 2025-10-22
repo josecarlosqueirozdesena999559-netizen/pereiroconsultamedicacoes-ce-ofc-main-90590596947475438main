@@ -1,10 +1,10 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Download } from 'lucide-react';
-import { format, getDay, isBefore, startOfDay } from 'date-fns';
+import { UBS, User } from '@/types';
+import { UpdateCheckHistory } from '@/lib/storage';
+import { format, getDay, startOfDay, isBefore } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import type { UBS, User } from '@/types';
-import type { UpdateCheckHistory } from '@/lib/storage';
 
 interface UpdateReportPDFProps {
   history: UpdateCheckHistory[];
@@ -12,321 +12,378 @@ interface UpdateReportPDFProps {
   usersList: User[];
   startDate: Date;
   endDate: Date;
-  /** Paisagem (true) ou retrato (false). */
-  landscape?: boolean;
-  /** Título da instituição. */
-  orgTitle?: string;
-  /** Subtítulo da instituição. */
-  orgSubtitle?: string;
-  /** Marca d'água confidencial. */
-  confidentialWatermark?: boolean;
 }
 
-// ===== Utilitários de data =====
-const timeZone = 'America/Fortaleza';
-const formatBR = (d: Date | string) => format(new Date(d), 'dd/MM/yyyy', { locale: ptBR });
-const formatDateTimeBR = (d = new Date()) => new Intl.DateTimeFormat('pt-BR', {
-  timeZone,
-  day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
-}).format(d);
+/** Formata data ISO(yyyy-mm-dd) -> dd/MM/yyyy */
+const formatDate = (dateString: string) =>
+  format(new Date(dateString), 'dd/MM/yyyy', { locale: ptBR });
 
-// ===== Dias úteis entre dois limites (inclui as pontas) =====
+/** Gera somente dias úteis (seg-sex) no intervalo */
 const getBusinessDaysInRange = (start: Date, end: Date): string[] => {
   const dates: string[] = [];
   let currentDate = startOfDay(start);
   const endDate = startOfDay(end);
+
   while (isBefore(currentDate, endDate) || currentDate.getTime() === endDate.getTime()) {
-    const dow = getDay(currentDate); // 0=dom...6=sab
+    const dow = getDay(currentDate); // 0 dom ... 6 sáb
     if (dow >= 1 && dow <= 5) dates.push(format(currentDate, 'yyyy-MM-dd'));
     currentDate = new Date(currentDate.getTime() + 24 * 60 * 60 * 1000);
   }
   return dates;
 };
 
-// ===== Resumo por UBS =====
-function summarizeHistory(
+type UbsSummary = {
+  ubsName: string;
+  responsavelNames: string;
+  totalDays: number;
+  updatedManha: number;
+  updatedTarde: number;
+  daysMissed: number;
+  daysCompleted: number;
+  completionPct: number;
+  details: Record<string, { manha: boolean; tarde: boolean; user: string }>;
+};
+
+const summarizeHistory = (
   history: UpdateCheckHistory[],
   ubsList: UBS[],
   usersList: User[],
   startDate: Date,
   endDate: Date
-) {
-  const summary: Record<string, {
-    ubsId: string;
-    ubsName: string;
-    responsavelNames: string;
-    totalDays: number;
-    updatedManha: number;
-    updatedTarde: number;
-    daysMissed: number;
-    completionRate: number; // % de dias com manhã e tarde
-    details: Record<string, { manha: boolean; tarde: boolean; user: string }>;
-  }> = {};
-
+) => {
+  const summary: Record<string, UbsSummary> = {};
   const allBusinessDates = getBusinessDaysInRange(startDate, endDate);
 
-  // Inicializa
   ubsList.forEach((ubs) => {
     const responsaveis = usersList
-      .filter((u) => (u as any).ubsVinculadas?.includes?.(ubs.id))
-      .map((u) => (u as any).nome)
+      .filter((u) => u.ubsVinculadas.includes(ubs.id))
+      .map((u) => u.nome)
       .join(', ');
 
     summary[ubs.id] = {
-      ubsId: ubs.id,
-      ubsName: (ubs as any).nome || '',
+      ubsName: ubs.nome,
       responsavelNames: responsaveis || 'N/A',
       totalDays: allBusinessDates.length,
       updatedManha: 0,
       updatedTarde: 0,
       daysMissed: 0,
-      completionRate: 0,
+      daysCompleted: 0,
+      completionPct: 0,
       details: {},
     };
   });
 
-  // Filtra apenas dias úteis do período
-  const filtered = history.filter((h) => getBusinessDaysInRange(startDate, endDate).includes(h.data));
+  const businessDayHistory = history.filter(
+    (h) => h.data && allBusinessDates.includes(h.data)
+  );
 
-  filtered.forEach((check) => {
-    const ubs = summary[check.ubs_id];
-    if (!ubs) return;
+  businessDayHistory.forEach((check) => {
+    const ubsSum = summary[check.ubs_id];
+    if (!ubsSum) return;
+
     const dateKey = check.data;
     const user = usersList.find((u) => u.id === check.user_id)?.nome || 'Desconhecido';
+    if (!ubsSum.details[dateKey]) ubsSum.details[dateKey] = { manha: false, tarde: false, user: '' };
 
-    if (!ubs.details[dateKey]) {
-      ubs.details[dateKey] = { manha: false, tarde: false, user: '' };
-    }
-    if (check.manha) ubs.details[dateKey].manha = true;
-    if (check.tarde) ubs.details[dateKey].tarde = true;
-    ubs.details[dateKey].user = user;
+    if (check.manha) ubsSum.details[dateKey].manha = true;
+    if (check.tarde) ubsSum.details[dateKey].tarde = true;
+    ubsSum.details[dateKey].user = user;
   });
 
-  Object.values(summary).forEach((ubs) => {
-    let daysCompleted = 0;
-    getBusinessDaysInRange(startDate, endDate).forEach((d) => {
-      const det = ubs.details[d];
-      if (det) {
-        if (det.manha) ubs.updatedManha += 1;
-        if (det.tarde) ubs.updatedTarde += 1;
-        if (det.manha && det.tarde) daysCompleted += 1;
+  Object.values(summary).forEach((u) => {
+    let completed = 0;
+    allBusinessDates.forEach((dateKey) => {
+      const d = u.details[dateKey];
+      if (d) {
+        if (d.manha) u.updatedManha++;
+        if (d.tarde) u.updatedTarde++;
+        if (d.manha && d.tarde) completed++;
       }
     });
-    ubs.daysMissed = ubs.totalDays - daysCompleted;
-    ubs.completionRate = ubs.totalDays > 0 ? Math.round((daysCompleted / ubs.totalDays) * 100) : 0;
+    u.daysCompleted = completed;
+    u.daysMissed = u.totalDays - completed;
+    u.completionPct = u.totalDays > 0 ? Math.round((completed / u.totalDays) * 100) : 0;
   });
 
   return { summary, allBusinessDates };
-}
+};
 
-// ===== HTML seguro =====
-const esc = (s: any) => String(s ?? '')
-  .replaceAll('&', '&amp;')
-  .replaceAll('<', '&lt;')
-  .replaceAll('>', '&gt;')
-  .replaceAll('"', '&quot;')
-  .replaceAll("'", '&#39;');
-
-// ===== Constrói o HTML completo do relatório =====
-function buildReportHTML(params: {
-  title: string;
-  orgTitle: string;
-  orgSubtitle?: string;
-  landscape: boolean;
-  confidential: boolean;
-  startDate: Date;
-  endDate: Date;
-  summaryList: ReturnType<typeof summarizeHistory>['summary'];
-  allBusinessDates: string[];
-}) {
-  const {
-    title, orgTitle, orgSubtitle, landscape, confidential,
-    startDate, endDate, summaryList, allBusinessDates
-  } = params;
-
-  const orientation = landscape ? 'landscape' : 'portrait';
-
-  // Agregados gerais
-  const list = Object.values(summaryList);
-  const totalUBS = list.length;
-  const totalDias = allBusinessDates.length;
-  const totalManha = list.reduce((a, b) => a + b.updatedManha, 0);
-  const totalTarde = list.reduce((a, b) => a + b.updatedTarde, 0);
-  const médiaConclusão = list.length
-    ? Math.round(list.reduce((a, b) => a + b.completionRate, 0) / list.length)
-    : 0;
-
-  const perUBS = list.map((u) => `
-    <section class="card section">
-      <div class="card-header">
-        <h3>${esc(u.ubsName)}</h3>
-        <div class="kpis">
-          <div><span class="k">Dias úteis</span><span class="v">${u.totalDays}</span></div>
-          <div><span class="k">Manhã</span><span class="v">${u.updatedManha}/${u.totalDays}</span></div>
-          <div><span class="k">Tarde</span><span class="v">${u.updatedTarde}/${u.totalDays}</span></div>
-          <div><span class="k">Cumprimento</span><span class="v">${u.completionRate}%</span></div>
-          <div><span class="k">Dias perdidos</span><span class="v ${u.daysMissed > 0 ? 'neg' : ''}">${u.daysMissed}</span></div>
-        </div>
-      </div>
-      <div class="resp">Responsável(is): <b>${esc(u.responsavelNames)}</b></div>
-      <table aria-label="Detalhes ${esc(u.ubsName)}">
-        <thead>
-          <tr>
-            <th>Data</th>
-            <th>Manhã</th>
-            <th>Tarde</th>
-            <th>Responsável (último check)</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${allBusinessDates.map((d) => {
-            const det = u.details[d];
-            const m = det?.manha ? '✓' : '–';
-            const t = det?.tarde ? '✓' : '–';
-            return `
-              <tr>
-                <td>${esc(formatBR(d))}</td>
-                <td class="${det?.manha ? 'ok' : ''}">${m}</td>
-                <td class="${det?.tarde ? 'ok' : ''}">${t}</td>
-                <td>${esc(det?.user || 'N/A')}</td>
-              </tr>
-            `;
-          }).join('')}
-        </tbody>
-      </table>
-    </section>
-  `).join('');
-
-  return `<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-  <meta charset="utf-8" />
-  <title>${esc(title)}</title>
-  <style>
-    :root { --ink:#1f2937; --muted:#6b7280; --line:#e5e7eb; --ok:#111827; }
-    *{ box-sizing:border-box; }
-    html,body{ height:100%; }
-    body{ margin:0; color:var(--ink); font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
-
-    @page { size: A4 ${orientation}; margin: 16mm; }
-
-    .watermark{ position:fixed; inset:0; display:grid; place-items:center; pointer-events:none; }
-    .watermark span{ font-size:120px; font-weight:800; color:rgba(0,0,0,.05); transform:rotate(-24deg); letter-spacing:8px; }
-
-    header{ display:flex; align-items:center; gap:14px; }
-    .brand-img{ height:28px; display:block; }
-    .hgroup h1{ margin:0; font-size:20px; }
-    .hgroup p{ margin:2px 0 0; color:var(--muted); font-size:12px; }
-
-    .report-title{ margin:14px 0 0; font-size:22px; border-bottom:2px solid #c7c7c7; padding-bottom:6px; }
-    .meta{ display:flex; gap:12px; margin-top:8px; color:var(--muted); font-size:12px; }
-
-    .summary{ display:flex; flex-wrap:wrap; gap:10px; margin-top:12px; }
-    .kpi{ border:1px solid var(--line); border-radius:10px; padding:10px 12px; min-width:140px; }
-    .kpi .k{ font-size:11px; color:var(--muted); }
-    .kpi .v{ font-size:16px; font-weight:700; margin-top:2px; }
-
-    table{ width:100%; border-collapse:collapse; margin-top:10px; table-layout:fixed; }
-    thead{ display:table-header-group; }
-    th,td{ border:1px solid var(--line); padding:8px; font-size:12px; vertical-align:top; }
-    th{ background:#f8f9fb; text-align:left; text-transform:uppercase; letter-spacing:.02em; font-size:11px; border-top:2px solid #c3c6cc; }
-    tbody tr:nth-child(even){ background:#fbfbfb; }
-    td.ok{ font-weight:700; }
-    .neg{ font-weight:700; }
-
-    .card{ border:1px solid var(--line); border-radius:12px; padding:12px; margin-top:14px; }
-    .card-header{ display:flex; justify-content:space-between; align-items:flex-end; gap:10px; }
-    .card-header h3{ margin:0; font-size:16px; }
-    .kpis{ display:flex; gap:10px; }
-    .kpis .k{ color:var(--muted); font-size:11px; display:block; }
-    .kpis .v{ font-weight:700; font-size:13px; }
-    .resp{ margin-top:6px; font-size:12px; }
-
-    .footer{ position:fixed; left:0; right:0; bottom:0; font-size:10px; color:var(--muted); display:flex; justify-content:space-between; }
-
-    .section{ page-break-inside:avoid; }
-    tr{ page-break-inside:avoid; }
-  </style>
-</head>
-<body>
-  ${confidential ? '<div class="watermark"><span>CONFIDENCIAL</span></div>' : ''}
-
-  <header>
-    <img class="brand-img" src="/ChatGPT Image 23_09_2025, 07_28_12.png" alt="ConsultMed" />
-    <div class="hgroup">
-      <h1>${esc(orgTitle)}</h1>
-      ${orgSubtitle ? `<p>${esc(orgSubtitle)}</p>` : ''}
-    </div>
-  </header>
-
-  <h2 class="report-title">${esc(title)}</h2>
-  <div class="meta">
-    <div>Período: <b>${esc(formatBR(startDate))}</b> a <b>${esc(formatBR(endDate))}</b> (dias úteis)</div>
-    <div>Gerado em: ${esc(formatDateTimeBR())}</div>
-  </div>
-
-  <section class="summary">
-    <div class="kpi"><span class="k">UBS</span><span class="v">${totalUBS}</span></div>
-    <div class="kpi"><span class="k">Dias úteis no período</span><span class="v">${totalDias}</span></div>
-    <div class="kpi"><span class="k">Registros manhã</span><span class="v">${totalManha}</span></div>
-    <div class="kpi"><span class="k">Registros tarde</span><span class="v">${totalTarde}</span></div>
-    <div class="kpi"><span class="k">Índice de cumprimento</span><span class="v">${médiaConclusão}%</span></div>
-  </section>
-
-  ${perUBS}
-
-  <footer class="footer">
-    <div>${esc(orgSubtitle || '')}</div>
-    <div>${esc(formatDateTimeBR())}</div>
-  </footer>
-
-  <script>window.addEventListener('load', () => setTimeout(() => window.print(), 50));</script>
-</body>
-</html>`;
-}
-
-// ===== Componente principal =====
 const UpdateReportPDF: React.FC<UpdateReportPDFProps> = ({
   history,
   ubsList,
   usersList,
   startDate,
   endDate,
-  landscape = true,
-  orgTitle = 'Prefeitura Municipal',
-  orgSubtitle = 'ConsultMed',
-  confidentialWatermark = false,
 }) => {
-  const { summary, allBusinessDates } = summarizeHistory(history, ubsList, usersList, startDate, endDate);
+  const printRef = useRef<HTMLDivElement>(null);
+  const { summary, allBusinessDates } = summarizeHistory(
+    history,
+    ubsList,
+    usersList,
+    startDate,
+    endDate
+  );
+  const ubsSummaryList = Object.values(summary);
 
   const handlePrint = () => {
-    if (allBusinessDates.length === 0) return;
-    const html = buildReportHTML({
-      title: 'Relatório de Atualizações de UBS',
-      orgTitle,
-      orgSubtitle,
-      landscape,
-      confidential: confidentialWatermark,
-      startDate,
-      endDate,
-      summaryList: summary,
-      allBusinessDates,
-    });
+    if (!printRef.current) return;
+    const w = window.open('', '', 'height=800,width=1000');
+    if (!w) return;
 
-    const win = window.open('', '', 'height=800,width=1100');
-    if (!win) return;
-    win.document.open();
-    win.document.write(html);
-    win.document.close();
+    w.document.write('<html><head><title>Relatório de Atualizações - ConsultMed</title>');
+    // ======= TEMA VERDE "ConsultMed" =======
+    w.document.write(`
+      <style>
+        :root{
+          --green-600:#28a745;   /* principal */
+          --green-700:#1e7e34;
+          --green-100:#e9f7ef;
+          --green-200:#d4edda;
+          --green-900:#0f3f1b;
+          --gray-100:#f9fafb;
+          --gray-200:#edf2f7;
+          --gray-300:#e2e8f0;
+          --gray-600:#4a5568;
+          --red-100:#fde8e8;
+          --red-600:#e53e3e;
+        }
+        *{box-sizing:border-box}
+        body{font-family:Arial,Helvetica,sans-serif;margin:20px;color:#333;}
+        .brand{font-weight:800;letter-spacing:.2px}
+        .header-card{
+          background:var(--green-600);
+          color:#fff;
+          border-radius:12px;
+          padding:24px;
+          margin-bottom:18px;
+        }
+        .header-top{
+          display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;
+        }
+        .system{font-size:12px;opacity:.95}
+        .header-card h1{
+          margin:0;
+          font-size:22px;
+          font-weight:800;
+        }
+        .header-grid{
+          display:grid;
+          grid-template-columns:repeat(2,minmax(0,1fr));
+          gap:14px;
+          font-size:12px;
+          margin-top:10px;
+        }
+        .muted{opacity:.95}
+        .section{
+          background:#fff;
+          border:1px solid var(--gray-300);
+          border-radius:12px;
+          padding:16px;
+          margin:14px 0 22px 0;
+        }
+        .section h2{margin:0 0 8px 0;font-size:16px}
+        .ubs-card{
+          background:#fff;
+          border:1px solid var(--gray-300);
+          border-radius:12px;
+          padding:14px;
+          margin:16px 0;
+          page-break-inside: avoid;
+        }
+        .ubs-title{font-size:15px;font-weight:700;margin:0 0 6px 0}
+        .meta{font-size:12px;margin:0 0 8px 0}
+        .stats{
+          display:grid;
+          grid-template-columns:repeat(4,minmax(0,1fr));
+          gap:10px;
+          margin:8px 0 12px 0;
+        }
+        .stat{
+          background:var(--gray-100);
+          border:1px solid var(--gray-300);
+          border-radius:10px;
+          padding:10px;
+        }
+        .stat h3{
+          margin:0 0 4px 0;
+          font-size:11px;
+          font-weight:600;
+          color:var(--gray-600);
+        }
+        .stat .big{font-size:18px;font-weight:800;margin:0}
+        .stat.ok{background:var(--green-100);border-color:var(--green-200)}
+        .stat.err{background:var(--red-100);border-color:#f8d7da}
+        .progress{
+          height:10px;background:var(--gray-200);
+          border-radius:999px;overflow:hidden;margin:2px 0 10px 0;border:1px solid var(--gray-300);
+        }
+        .bar{height:100%;background:var(--green-600)}
+        .progress-row{display:flex;justify-content:space-between;font-size:11px;margin-bottom:8px}
+        table{width:100%;border-collapse:collapse;margin-top:8px;font-size:11px}
+        th,td{border:1px solid var(--gray-300);padding:6px;text-align:left}
+        th{background:var(--green-200);color:var(--green-900)}
+        .yes{font-weight:700;color:var(--green-700)}
+        .no{font-weight:700;color:#b00020}
+        .badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;background:var(--green-100);border:1px solid var(--green-200);color:var(--green-700);font-weight:700}
+        .footer{margin-top:18px;font-size:10px;opacity:.8;text-align:right}
+      </style>
+    `);
+    // =======================================
+    w.document.write('</head><body>');
+    w.document.write(printRef.current.innerHTML);
+    w.document.close();
+    w.print();
   };
 
-  const disabled = allBusinessDates.length === 0;
+  if (allBusinessDates.length === 0) {
+    return (
+      <Button disabled variant="outline" className="w-full">
+        <Download className="h-4 w-4 mr-2" />
+        Exportar Relatório (Sem Dias Úteis)
+      </Button>
+    );
+  }
+
+  const totalUbs = ubsSummaryList.length;
+  const totalDiasUteis = allBusinessDates.length;
+  const agoraBR = new Date().toLocaleString('pt-BR');
 
   return (
-    <Button onClick={handlePrint} disabled={disabled} className="w-full">
-      <Download className="h-4 w-4 mr-2" />
-      {disabled ? 'Exportar Relatório (Sem dias úteis)' : 'Exportar Relatório PDF'}
-    </Button>
+    <>
+      <Button onClick={handlePrint} variant="default" className="w-full">
+        <Download className="h-4 w-4 mr-2" />
+        Exportar Relatório PDF
+      </Button>
+
+      {/* ====== CONTEÚDO DO PDF ====== */}
+      <div ref={printRef} className="hidden">
+        {/* Cabeçalho principal com nome do sistema */}
+        <div className="header-card">
+          <div className="header-top">
+            <div className="system">
+              Sistema <span className="brand">ConsultMed</span>
+            </div>
+          </div>
+          <h1>Relatório de Atualizações de UBS</h1>
+          <div className="header-grid">
+            <div>
+              <div className="muted">Período</div>
+              <div>
+                <b>{formatDate(startDate.toISOString())}</b> a <b>{formatDate(endDate.toISOString())}</b>
+              </div>
+            </div>
+            <div>
+              <div className="muted">Data de Geração</div>
+              <div><b>{agoraBR}</b></div>
+            </div>
+            <div>
+              <div className="muted">Total de UBS</div>
+              <div><b>{totalUbs} {totalUbs === 1 ? 'unidade' : 'unidades'}</b></div>
+            </div>
+            <div>
+              <div className="muted">Dias Úteis</div>
+              <div><b>{totalDiasUteis} dias</b></div>
+            </div>
+          </div>
+        </div>
+
+        {/* Resumo geral */}
+        <div className="section">
+          <h2>Resumo Geral</h2>
+          <p style={{ margin: 0, fontSize: 12 }}>
+            Este relatório apresenta o acompanhamento das atualizações realizadas nas UBS durante {totalDiasUteis} dias úteis,
+            considerando os turnos de manhã e tarde.
+          </p>
+        </div>
+
+        {/* Cartões por UBS */}
+        {ubsSummaryList.map((u, idx) => {
+          const pct = u.completionPct;
+          return (
+            <div className="ubs-card" key={idx}>
+              <div className="ubs-title">{u.ubsName}</div>
+              <div className="meta">
+                <b>Responsável(is):</b> {u.responsavelNames} &nbsp;&nbsp;
+                <span className="badge">Concluído: {pct}%</span>
+              </div>
+
+              {/* Métricas (4 cards) */}
+              <div className="stats">
+                <div className="stat">
+                  <h3>DIAS ÚTEIS</h3>
+                  <p className="big">{u.totalDays}</p>
+                  <div className="muted">no período</div>
+                </div>
+
+                <div className="stat ok">
+                  <h3>MANHÃ</h3>
+                  <p className="big">{u.updatedManha}</p>
+                  <div className="muted">
+                    {u.totalDays ? Math.round((u.updatedManha / u.totalDays) * 100) : 0}% completo
+                  </div>
+                </div>
+
+                <div className="stat ok">
+                  <h3>TARDE</h3>
+                  <p className="big">{u.updatedTarde}</p>
+                  <div className="muted">
+                    {u.totalDays ? Math.round((u.updatedTarde / u.totalDays) * 100) : 0}% completo
+                  </div>
+                </div>
+
+                <div className="stat err">
+                  <h3>DIAS PERDIDOS</h3>
+                  <p className="big">{u.daysMissed}</p>
+                  <div className="muted">incompletos</div>
+                </div>
+              </div>
+
+              {/* Barra de progresso */}
+              <div className="progress-row">
+                <div className="muted">Progresso de Conclusão</div>
+                <div className="muted">{pct}%</div>
+              </div>
+              <div className="progress">
+                <div className="bar" style={{ width: `${pct}%` }} />
+              </div>
+
+              {/* Tabela de detalhamento diário */}
+              <div className="section" style={{ marginTop: 12 }}>
+                <h2 style={{ fontSize: 14, marginBottom: 6 }}>Detalhamento Diário</h2>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Data</th>
+                      <th>Manhã</th>
+                      <th>Tarde</th>
+                      <th>Responsável (Último Check)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {allBusinessDates.map((date) => {
+                      const d = u.details[date];
+                      return (
+                        <tr key={date}>
+                          <td>{formatDate(date)}</td>
+                          <td className={d?.manha ? 'yes' : 'no'}>{d?.manha ? 'Sim' : 'Não'}</td>
+                          <td className={d?.tarde ? 'yes' : 'no'}>{d?.tarde ? 'Sim' : 'Não'}</td>
+                          <td>{d?.user || 'N/A'}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          );
+        })}
+
+        {/* Rodapé com marca do sistema */}
+        <div className="footer">
+          Gerado por <strong>ConsultMed</strong>
+        </div>
+      </div>
+    </>
   );
 };
 
