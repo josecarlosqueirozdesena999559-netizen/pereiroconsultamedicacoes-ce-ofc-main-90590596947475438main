@@ -131,7 +131,6 @@ const UpdateReportPDF: React.FC<UpdateReportPDFProps> = ({
     startDate,
     endDate
   );
-  const ubsSummaryList = Object.values(summary);
 
   const handlePrint = () => {
     if (!printRef.current) return;
@@ -229,6 +228,7 @@ const UpdateReportPDF: React.FC<UpdateReportPDFProps> = ({
         .badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;background:var(--green-100);border:1px solid var(--green-200);color:var(--green-700);font-weight:700}
         .footer{margin-top:18px;font-size:10px;opacity:.8;text-align:right}
         .calc-explainer{font-size:11px; opacity:.9; margin-top:6px}
+        .none{color:#555; font-style:italic}
       </style>
     `);
     // =======================================
@@ -238,7 +238,7 @@ const UpdateReportPDF: React.FC<UpdateReportPDFProps> = ({
     w.print();
   };
 
-  const { length: totalDiasUteis } = allBusinessDates;
+  const totalDiasUteis = allBusinessDates.length;
   if (totalDiasUteis === 0) {
     return (
       <Button disabled variant="outline" className="w-full">
@@ -366,6 +366,19 @@ const UpdateReportPDF: React.FC<UpdateReportPDFProps> = ({
                   <tbody>
                     {allBusinessDates.map((date) => {
                       const d = u.details[date];
+                      const noActivity = !d?.manha && !d?.tarde; // nenhum turno marcado
+
+                      if (noActivity) {
+                        return (
+                          <tr key={date}>
+                            <td>{formatDate(date)}</td>
+                            <td className="none" colSpan={3}>
+                              Não foi registrada nenhuma atividade neste dia.
+                            </td>
+                          </tr>
+                        );
+                      }
+
                       return (
                         <tr key={date}>
                           <td>{formatDate(date)}</td>
