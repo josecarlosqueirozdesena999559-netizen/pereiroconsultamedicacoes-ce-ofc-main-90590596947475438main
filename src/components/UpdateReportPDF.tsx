@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Download } from 'lucide-react';
 import { UBS, User } from '@/types';
 import { UpdateCheckHistory } from '@/lib/storage';
-import { format, getDay, startOfDay, isBefore, parse } from 'date-fns';
+import { format, startOfDay, parse } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 interface UpdateReportPDFProps {
@@ -26,16 +26,19 @@ const formatDate = (value: string | Date) => {
   return format(d, 'dd/MM/yyyy', { locale: ptBR });
 };
 
-/** Gera somente dias úteis (seg-sex) no intervalo (local) */
+/** Gera somente dias úteis (seg-sex) no intervalo (local, DST-safe) */
 const getBusinessDaysInRange = (start: Date, end: Date): string[] => {
   const dates: string[] = [];
-  let currentDate = startOfDay(start);
-  const endDate = startOfDay(end);
+  const cur = new Date(start.getFullYear(), start.getMonth(), start.getDate()); // zera hora local
+  const endLocal = new Date(end.getFullYear(), end.getMonth(), end.getDate());
 
-  while (isBefore(currentDate, endDate) || currentDate.getTime() === endDate.getTime()) {
-    const dow = getDay(currentDate); // 0 dom ... 6 sáb (local)
-    if (dow >= 1 && dow <= 5) dates.push(format(currentDate, 'yyyy-MM-dd'));
-    currentDate = new Date(currentDate.getTime() + 24 * 60 * 60 * 1000);
+  while (cur.getTime() <= endLocal.getTime()) {
+    const dow = cur.getDay(); // 0 dom ... 6 sáb (local)
+    if (dow >= 1 && dow <= 5) {
+      dates.push(format(cur, 'yyyy-MM-dd')); // sempre local (sem UTC shift)
+    }
+    // avança 1 dia de forma local (DST-safe)
+    cur.setDate(cur.getDate() + 1);
   }
   return dates;
 };
@@ -49,9 +52,14 @@ type UbsSummary = {
   daysMissed: number;
   daysCompleted: number;
   completionPct: number;
+  /** Detalhe do dia => último responsável + flags */
   details: Record<string, { manha: boolean; tarde: boolean; user: string }>;
 };
 
+/** Normaliza múltiplos checks no mesmo dia:
+ * - manha/tarde = OR lógico de todos os registros daquele dia/UBS
+ * - user = do registro mais RECENTE por created_at (quando houver)
+ */
 const summarizeHistory = (
   history: UpdateCheckHistory[],
   ubsList: UBS[],
@@ -62,9 +70,16 @@ const summarizeHistory = (
   const summary: Record<string, UbsSummary> = {};
   const allBusinessDates = getBusinessDaysInRange(startDate, endDate);
 
+  // mapa rápido userId->nome
+  const userNameById = new Map(usersList.map((u) => [u.id, u.nome]));
+
+  // Inicializa todas as UBS com todos os dias do período (tabela nunca “some”)
   ubsList.forEach((ubs) => {
     const responsaveis = usersList
-      .filter((u) => u.ubsVinculadas.includes(ubs.id))
+      .filter(
+        (u: any) =>
+          Array.isArray(u?.ubsVinculadas) && u.ubsVinculadas.includes(ubs.id)
+      )
       .map((u) => u.nome)
       .join(', ');
 
@@ -77,40 +92,78 @@ const summarizeHistory = (
       daysMissed: 0,
       daysCompleted: 0,
       completionPct: 0,
-      details: {},
+      details: Object.fromEntries(
+        allBusinessDates.map((d) => [d, { manha: false, tarde: false, user: '' }])
+      ),
     };
   });
 
+  // Considera apenas dias úteis do range
   const businessDayHistory = history.filter(
-    (h) => h.data && allBusinessDates.includes(h.data)
+    (h) => h.data && allBusinessDates.includes(h.data as any)
   );
 
-  businessDayHistory.forEach((check) => {
-    const ubsSum = summary[check.ubs_id];
-    if (!ubsSum) return;
+  // Indexa por (ubs_id, data) e escolhe o registro mais recente por created_at para o "user"
+  type DayAgg = { manha: boolean; tarde: boolean; lastUserId: string; lastCreatedAt: string };
+  const dayAgg = new Map<string, DayAgg>(); // key = `${ubs_id}|${data}`
 
-    const dateKey = check.data; // 'yyyy-MM-dd'
-    const user = usersList.find((u) => u.id === check.user_id)?.nome || 'Desconhecido';
-    if (!ubsSum.details[dateKey]) ubsSum.details[dateKey] = { manha: false, tarde: false, user: '' };
+  for (const check of businessDayHistory) {
+    const key = `${check.ubs_id}|${check.data}`;
+    const prev = dayAgg.get(key);
 
-    if (check.manha) ubsSum.details[dateKey].manha = true;
-    if (check.tarde) ubsSum.details[dateKey].tarde = true;
-    ubsSum.details[dateKey].user = user;
-  });
+    const createdAt = (check as any).created_at ?? ''; // se o tipo tiver
+    const manha = !!check.manha;
+    const tarde = !!check.tarde;
 
+    if (!prev) {
+      dayAgg.set(key, {
+        manha,
+        tarde,
+        lastUserId: (check as any).user_id ?? '',
+        lastCreatedAt: createdAt,
+      });
+    } else {
+      // OR lógico nos turnos
+      const newManha = prev.manha || manha;
+      const newTarde = prev.tarde || tarde;
+      // escolhe user do registro mais recente (ISO lex compare funciona)
+      const newer =
+        !!createdAt && (!prev.lastCreatedAt || createdAt > prev.lastCreatedAt);
+      dayAgg.set(key, {
+        manha: newManha,
+        tarde: newTarde,
+        lastUserId: newer ? ((check as any).user_id ?? prev.lastUserId) : prev.lastUserId,
+        lastCreatedAt: newer ? createdAt : prev.lastCreatedAt,
+      });
+    }
+  }
+
+  // Aplica agregação no summary
+  for (const [key, agg] of dayAgg.entries()) {
+    const [ubsId, dia] = key.split('|');
+    const u = summary[ubsId];
+    if (!u) continue;
+
+    const userName = userNameById.get(agg.lastUserId) || 'Desconhecido';
+    const d = u.details[dia]; // já existe para todos os dias
+    d.manha = agg.manha;
+    d.tarde = agg.tarde;
+    d.user = userName;
+  }
+
+  // Métricas finais
   Object.values(summary).forEach((u) => {
     let completed = 0;
-    allBusinessDates.forEach((dateKey) => {
+    for (const dateKey of allBusinessDates) {
       const d = u.details[dateKey];
-      if (d) {
-        if (d.manha) u.updatedManha++;
-        if (d.tarde) u.updatedTarde++;
-        if (d.manha && d.tarde) completed++;
-      }
-    });
+      if (d.manha) u.updatedManha++;
+      if (d.tarde) u.updatedTarde++;
+      if (d.manha && d.tarde) completed++;
+    }
     u.daysCompleted = completed;
     u.daysMissed = u.totalDays - completed;
-    u.completionPct = u.totalDays > 0 ? Math.round((completed / u.totalDays) * 100) : 0;
+    u.completionPct =
+      u.totalDays > 0 ? Math.round((completed / u.totalDays) * 100) : 0;
   });
 
   return { summary, allBusinessDates };
