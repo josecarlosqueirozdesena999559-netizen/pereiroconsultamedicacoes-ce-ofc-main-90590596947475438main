@@ -211,6 +211,7 @@ const UserDashboard = () => {
     link.click();
   };
 
+  // Avisos estáticos
   const staticAlerts = [
     {
       id: "welcome-guide",
@@ -235,6 +236,7 @@ const UserDashboard = () => {
     },
   ];
 
+  // Avisos dinâmicos (correções aprovadas)
   const correctionAlerts = approvedCorrections.map((c) => {
     const ubs = ubsList.find((u) => u.id === c.ubs_id);
     const ubsName = ubs?.nome || "UBS Desconhecida";
@@ -251,45 +253,45 @@ const UserDashboard = () => {
 
   return (
     <div className="space-y-6">
-      {/* Sticky notice bar */}
-      <div className="sticky top-0 z-20 -mx-2 sm:mx-0 bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b">
-        {allAlerts.length === 0 && !showConsultMed ? (
-          <div className="max-w-6xl mx-auto px-4 py-3 flex items-center gap-2 text-muted-foreground">
-            <Info className="h-4 w-4" />
-            <span className="text-sm">Nenhum comunicado ativo no momento.</span>
-          </div>
-        ) : (
-          <div className="max-w-6xl mx-auto px-4 py-3 flex gap-3 overflow-x-auto snap-x">
-            {/* Aviso especial: Atualização do ConsultMed */}
-            {showConsultMed && (
-              <div className="min-w-[320px] snap-start">
-                <Alert className="border-primary/20 bg-primary/5">
-                  <AlertTitle className="font-semibold text-sm">
-                    Atualização do ConsultMed
-                  </AlertTitle>
-                  <AlertDescription className="text-xs">
-                    Novo visual da tela do usuário, botões mais dinâmicos,
-                    textos mais explicativos e fluxo simplificado — tudo isso
-                    sem desconfigurar o código existente. Esta notificação
-                    expira automaticamente em 23 horas.
-                  </AlertDescription>
-                </Alert>
-              </div>
-            )}
+      {/* Comunicados empilhados */}
+      <div className="-mx-2 sm:mx-0 bg-background/80 border-b">
+        <div className="max-w-6xl mx-auto px-4 py-4 space-y-3">
+          {/* Aviso especial: Atualização do ConsultMed (colorido) */}
+          {showConsultMed && (
+            <Alert className="border-indigo-300 bg-indigo-50">
+              <AlertTitle className="font-semibold text-sm text-indigo-900">
+                Atualização do ConsultMed
+              </AlertTitle>
+              <AlertDescription className="text-xs text-indigo-800">
+                Novo visual da tela do usuário, botões mais dinâmicos, textos
+                mais explicativos e fluxo simplificado — tudo isso sem
+                desconfigurar o código existente. Esta notificação expira
+                automaticamente em 23 horas.
+              </AlertDescription>
+            </Alert>
+          )}
 
-            {/* Demais avisos (estáticos e dinâmicos) */}
-            {allAlerts.map((alert) => (
-              <div key={alert.id} className="min-w-[320px] snap-start">
+          {allAlerts.length === 0 && !showConsultMed ? (
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <Info className="h-4 w-4" />
+              <span className="text-sm">
+                Nenhum comunicado ativo no momento.
+              </span>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {allAlerts.map((alert) => (
                 <DismissibleAlert
+                  key={alert.id}
                   id={alert.id}
                   title={alert.title}
                   description={alert.description}
                   variant={alert.variant}
                 />
-              </div>
-            ))}
-          </div>
-        )}
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="max-w-6xl mx-auto px-4 space-y-6">
@@ -326,7 +328,13 @@ const UserDashboard = () => {
                 </CardContent>
               </Card>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div
+                className={
+                  ubsList.length === 1
+                    ? "grid grid-cols-1 gap-6 max-w-5xl mx-auto"
+                    : "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+                }
+              >
                 {ubsList.map((ubs) => {
                   const updatedToday = isPDFUpdatedToday(ubs);
                   const manhaChecked = updateChecks[ubs.id]?.manha || false;
@@ -346,7 +354,8 @@ const UserDashboard = () => {
                         </CardDescription>
                       </CardHeader>
 
-                      <CardContent className="space-y-4">
+                      <CardContent className="space-y-5">
+                        {/* bloco informativo */}
                         <div className="text-sm text-muted-foreground">
                           <p>
                             <strong>Responsável:</strong> {ubs.responsavel}
@@ -361,6 +370,7 @@ const UserDashboard = () => {
                           )}
                         </div>
 
+                        {/* alerta de status do dia */}
                         {!isComplete(ubs.id) && (
                           <Alert className="border-amber-500/20 bg-amber-500/5">
                             <AlertTitle className="font-semibold text-sm text-amber-700">
@@ -376,6 +386,7 @@ const UserDashboard = () => {
                           </Alert>
                         )}
 
+                        {/* status checkboxes */}
                         <div className="rounded-lg p-3 bg-muted/30 space-y-2">
                           <p className="text-xs font-medium text-muted-foreground mb-2">
                             Status de atualização diária
@@ -418,6 +429,7 @@ const UserDashboard = () => {
                           )}
                         </div>
 
+                        {/* ações */}
                         <div className="border-t pt-4 space-y-3">
                           <div className="flex items-center justify-between">
                             <Label className="text-sm font-medium">
@@ -428,13 +440,14 @@ const UserDashboard = () => {
                             )}
                           </div>
 
-                          <div className="space-y-2">
+                          <div className="flex flex-col sm:flex-row sm:items-center gap-2">
                             <Button
                               onClick={() => triggerFileInput(ubs.id)}
                               disabled={
                                 uploadingUBS === ubs.id || isComplete(ubs.id)
                               }
-                              className="w-full"
+                              className="w-full sm:w-auto h-11"
+                              size="lg"
                               variant={ubs.pdfUrl ? "outline" : "default"}
                             >
                               <Upload className="h-4 w-4 mr-2" />
@@ -451,19 +464,22 @@ const UserDashboard = () => {
                               <Button
                                 onClick={() => handleDownload(ubs)}
                                 variant="ghost"
-                                className="w-full"
+                                className="w-full sm:w-auto h-11"
+                                size="lg"
                               >
                                 <Download className="h-4 w-4 mr-2" />
                                 Baixar PDF atual
                               </Button>
                             )}
-                          </div>
 
-                          <CorrectionRequestModal
-                            ubsId={ubs.id}
-                            ubsName={ubs.nome}
-                            onSuccess={loadUserUBS}
-                          />
+                            <div className="w-full sm:w-auto">
+                              <CorrectionRequestModal
+                                ubsId={ubs.id}
+                                ubsName={ubs.nome}
+                                onSuccess={loadUserUBS}
+                              />
+                            </div>
+                          </div>
 
                           <div className="text-xs text-muted-foreground bg-muted/50 p-2 rounded">
                             <p>
