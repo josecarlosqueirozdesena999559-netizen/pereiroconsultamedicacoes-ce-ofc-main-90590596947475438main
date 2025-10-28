@@ -13,7 +13,7 @@ const MedicacoesAutoCusto = () => {
         <div className="container mx-auto px-3 sm:px-4 text-center">
           <Pill className="h-12 w-12 sm:h-16 sm:w-16 mx-auto mb-4 sm:mb-6 opacity-90" />
           <h1 className="text-2xl sm:text-4xl md:text-6xl font-bold mb-3 sm:mb-6">
-            Medicações Auto Custo
+            Medicamentos Alto Custo
           </h1>
           <p className="text-base sm:text-xl md:text-2xl opacity-95 mb-2 sm:mb-4 font-medium">
             CAF - CENTRAL DE ABASTECIMENTO FARMACÊUTICO.
