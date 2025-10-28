@@ -81,7 +81,7 @@ const Header = () => {
                   className="bg-white text-primary hover:bg-white/90 text-xs sm:text-sm px-2 sm:px-4 h-8 sm:h-10"
                 >
                   <Pill className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
-                  <span className="hidden sm:inline">Medicações Auto Custo</span>
+                  <span className="hidden sm:inline">Medicamentos Alto Custo</span>
                   <span className="sm:hidden">Med. Auto Custo</span>
                 </Button>
               )}
