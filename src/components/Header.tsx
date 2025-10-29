@@ -82,7 +82,7 @@ const Header = () => {
                 >
                   <Pill className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
                   <span className="hidden sm:inline">Medicamentos Alto Custo</span>
-                  <span className="sm:hidden">Med. Auto Custo</span>
+                  <span className="sm:hidden">Med. Alto Custo</span>
                 </Button>
               )}
               
