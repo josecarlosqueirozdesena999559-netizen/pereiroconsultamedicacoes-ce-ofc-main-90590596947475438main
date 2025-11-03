@@ -1,4 +1,4 @@
-import { LogOut, Home, Settings, Pill } from 'lucide-react';
+import { LogOut, Home, Settings, Pill, Star } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -17,19 +17,23 @@ const Header = () => {
   const isHomePage = location.pathname === '/';
   const isDashboardPage = location.pathname === '/dashboard';
   const isAutoCustoPage = location.pathname === '/medicacoes-auto-custo';
+  const isAvaliacoesPage = location.pathname === '/avaliacoes';
 
   // Lógica de exibição dos botões:
-  
+
   // 1. Botão Início: Aparece em qualquer lugar, exceto na Home.
   const showHomeButton = !isHomePage;
 
-  // 2. Botão Medicações Auto Custo: Aparece APENAS na Home.
+  // 2. Botão Medicações Alto Custo: Aparece APENAS na Home.
   const showAutoCustoButton = isHomePage;
 
   // 3. Botão Dashboard: Aparece se estiver autenticado E não estiver na página do Dashboard.
   const showDashboardButton = isAuthenticated && !isDashboardPage;
 
-  // 4. Botão Entrar/Sair: Sempre aparece.
+  // 4. Botão Avalie-nos: Aparece em todas as páginas, exceto na própria /avaliacoes.
+  const showReviewButton = !isAvaliacoesPage;
+
+  // 5. Botão Entrar/Sair: Sempre aparece.
 
   return (
     <header className="bg-white border-b-2 border-primary shadow-lg">
@@ -73,7 +77,7 @@ const Header = () => {
                 </Button>
               )}
               
-              {/* Botão Medicações Auto Custo */}
+              {/* Botão Medicações Alto Custo */}
               {showAutoCustoButton && (
                 <Button
                   variant="ghost"
@@ -97,6 +101,28 @@ const Header = () => {
                   <span className="hidden sm:inline">Dashboard</span>
                   <span className="sm:hidden">Dash</span>
                 </Button>
+              )}
+
+              {/* Botão Avalie-nos (abre nova aba para /avaliacoes) */}
+              {showReviewButton && (
+                <a
+                  href="/avaliacoes"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex"
+                >
+                  <Button
+                    asChild
+                    variant="ghost"
+                    className="bg-white text-primary hover:bg-white/90 text-xs sm:text-sm px-2 sm:px-4 h-8 sm:h-10"
+                  >
+                    <span>
+                      <Star className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
+                      <span className="hidden sm:inline">Avalie-nos aqui</span>
+                      <span className="sm:hidden">Avaliar</span>
+                    </span>
+                  </Button>
+                </a>
               )}
               
               {/* Botão Entrar / Sair */}
