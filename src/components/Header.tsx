@@ -1,3 +1,4 @@
+// src/components/Header.tsx
 import { LogOut, Home, Settings, Pill, Star } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
@@ -14,33 +15,37 @@ const Header = () => {
     navigate('/');
   };
 
+  // Flags de página
   const isHomePage = location.pathname === '/';
   const isDashboardPage = location.pathname === '/dashboard';
   const isAvaliacoesPage = location.pathname === '/avaliacoes';
 
-  const showHomeButton = !isHomePage;
-  const showAutoCustoButton = isHomePage;
-  const showDashboardButton = isAuthenticated && !isDashboardPage;
-  const showReviewButton = !isAvaliacoesPage;
+  // Lógica de exibição dos botões
+  const showHomeButton = !isHomePage;                            // Início: em qualquer lugar, exceto Home
+  const showAutoCustoButton = isHomePage;                        // Medicações Alto Custo: só na Home
+  const showDashboardButton = isAuthenticated && !isDashboardPage; // Dashboard: logado e fora do dashboard
+  const showReviewButton = !isAvaliacoesPage;                    // Avalie-nos: oculta na própria página
 
   return (
     <header className="bg-white border-b-2 border-primary shadow-lg">
+      {/* Logo */}
       <div className="bg-white py-2 sm:py-3">
         <div className="container mx-auto px-4">
           <div className="flex justify-center">
             <img
               src={logoPereiro}
               alt="Prefeitura Municipal de Pereiro"
-              className="h-15 sm:h-23 w-auto drop-shadow-md"
+              className="h-12 sm:h-20 w-auto drop-shadow-md" // tamanhos padrão do Tailwind p/ evitar build issues
             />
           </div>
         </div>
       </div>
 
-      <div className="bg-gradient-to-r from-primary to-[hsl(120_75%_25%)] text-primary-foreground">
+      {/* Barra de navegação */}
+      <div className="bg-gradient-to-r from-primary to-green-800 text-primary-foreground">
         <div className="container mx-auto px-3 sm:px-4 py-2 sm:py-4">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-0">
-            <div>
+            <div className="text-center sm:text-left">
               <h1 className="text-base sm:text-xl font-bold">ConsultMed</h1>
               <p className="text-xs opacity-90">
                 Consulta de Medicamentos Prefeitura Municipal de Pereiro
@@ -48,6 +53,7 @@ const Header = () => {
             </div>
 
             <nav className="flex items-center flex-wrap justify-center gap-1 sm:gap-1.5">
+              {/* Início */}
               {showHomeButton && (
                 <Button
                   variant="ghost"
@@ -59,6 +65,7 @@ const Header = () => {
                 </Button>
               )}
 
+              {/* Medicações Alto Custo (só na Home) */}
               {showAutoCustoButton && (
                 <Button
                   variant="ghost"
@@ -71,6 +78,7 @@ const Header = () => {
                 </Button>
               )}
 
+              {/* Dashboard (logado e fora do dashboard) */}
               {showDashboardButton && (
                 <Button
                   variant="ghost"
@@ -83,7 +91,7 @@ const Header = () => {
                 </Button>
               )}
 
-              {/* ✅ Botão Avalie-nos */}
+              {/* Avalie-nos (vai para /avaliacoes) */}
               {showReviewButton && (
                 <Button
                   variant="ghost"
@@ -96,6 +104,7 @@ const Header = () => {
                 </Button>
               )}
 
+              {/* Entrar / Sair */}
               {isAuthenticated ? (
                 <Button
                   variant="ghost"
