@@ -9,7 +9,8 @@ import Dashboard from "./pages/Dashboard";
 import MedicacoesAutoCusto from "./pages/MedicacoesAutoCusto";
 import NotFound from "./pages/NotFound";
 import PWAInstallPrompt from "./components/PWAInstallPrompt";
-import { AuthProvider } from "./hooks/useAuth"; // Importando o novo AuthProvider
+import { AuthProvider } from "./hooks/useAuth";
+import AvaliacoesPage from "./components/AvaliacoesPage"; // ✅ novo import
 
 const queryClient = new QueryClient();
 
@@ -18,14 +19,14 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      <AuthProvider> {/* AuthProvider agora envolve o BrowserRouter */}
+      <AuthProvider>
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/login" element={<Login />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/medicacoes-auto-custo" element={<MedicacoesAutoCusto />} />
-            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+            <Route path="/avaliacoes" element={<AvaliacoesPage />} /> {/* ✅ nova rota */}
             <Route path="*" element={<NotFound />} />
           </Routes>
           <PWAInstallPrompt />
