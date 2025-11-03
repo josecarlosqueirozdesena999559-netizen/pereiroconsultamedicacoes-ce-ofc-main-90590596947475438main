@@ -10,7 +10,7 @@ import MedicacoesAutoCusto from "./pages/MedicacoesAutoCusto";
 import NotFound from "./pages/NotFound";
 import PWAInstallPrompt from "./components/PWAInstallPrompt";
 import { AuthProvider } from "./hooks/useAuth";
-import AvaliacoesPage from "./components/AvaliacoesPage"; // ✅ novo import
+
 
 const queryClient = new QueryClient();
 
@@ -26,7 +26,6 @@ const App = () => (
             <Route path="/login" element={<Login />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/medicacoes-auto-custo" element={<MedicacoesAutoCusto />} />
-            <Route path="/avaliacoes" element={<AvaliacoesPage />} /> {/* ✅ nova rota */}
             <Route path="*" element={<NotFound />} />
           </Routes>
           <PWAInstallPrompt />
