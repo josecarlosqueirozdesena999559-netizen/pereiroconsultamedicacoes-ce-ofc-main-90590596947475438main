@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
 import { useNavigate, useLocation } from 'react-router-dom';
 import logoPereiro from '@/assets/logo-pereiro.png';
+import { supabase } from '@/lib/supabaseClient';
 
 const Header = () => {
   const { logout, isAuthenticated } = useAuth();
