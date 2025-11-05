@@ -33,6 +33,20 @@
   <meta property="og:description" content="Consulte os medicamentos disponíveis nas Unidades Básicas de Saúde de Pereiro" />
   <meta property="og:type" content="website" />
   <meta property="og:image" content="/ChatGPT%20Image%2023_09_2025%2C%2007_28_12.png" />
+
+   <!-- BLOQUEAR VIEW-SOURCE, F12, INSPECT -->
+  <script>
+    document.addEventListener("contextmenu", e => e.preventDefault());
+    document.addEventListener("keydown", e => {
+      if (
+        e.key === "F12" ||
+        (e.ctrlKey && e.key.toLowerCase() === "u") ||
+        (e.ctrlKey && e.shiftKey && ["i","j","c"].includes(e.key.toLowerCase()))
+      ) {
+        e.preventDefault();
+      }
+    });
+  </script>
 </head>
 
   <body>
