@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,7 +9,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Edit2, Trash2, User, Pill, Package, CheckCircle, Search, Calendar, FileText, Filter, X, AlertTriangle, Clock, RefreshCw, XCircle } from 'lucide-react';
+import { Plus, Edit2, Trash2, User, Pill, Package, CheckCircle, Search, Calendar, FileText, Filter, X, AlertTriangle, Clock, RefreshCw, XCircle, Upload, AlertCircle } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { supabase } from '@/integrations/supabase/client';
 import { format, isPast, isBefore, addDays, addMonths, differenceInDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -87,6 +88,9 @@ const GestaoAutoCusto = () => {
   const [isEntregaDialogOpen, setIsEntregaDialogOpen] = useState(false);
   const [isLoteDialogOpen, setIsLoteDialogOpen] = useState(false);
   const [isEditVinculoDialogOpen, setIsEditVinculoDialogOpen] = useState(false);
+  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
+  const [importedNames, setImportedNames] = useState<string[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Form states
   const [editingMed, setEditingMed] = useState<Medicamento | null>(null);
@@ -448,6 +452,72 @@ const GestaoAutoCusto = () => {
     }
   };
 
+  // Import Excel handler
+  const handleImportExcel = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const data = event.target?.result;
+        const workbook = XLSX.read(data, { type: 'binary' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as string[][];
+        
+        // Pegar nomes da primeira coluna (ignorando cabeçalho se houver)
+        const names = jsonData
+          .map(row => row[0])
+          .filter(name => name && typeof name === 'string' && name.trim() !== '')
+          .map(name => String(name).trim());
+        
+        if (names.length === 0) {
+          toast({ title: "Erro", description: "Nenhum nome encontrado na primeira coluna.", variant: "destructive" });
+          return;
+        }
+
+        setImportedNames(names);
+        setIsImportDialogOpen(true);
+      } catch (error) {
+        toast({ title: "Erro", description: "Erro ao ler arquivo Excel.", variant: "destructive" });
+      }
+    };
+    reader.readAsBinaryString(file);
+    
+    // Reset input para permitir reimportar o mesmo arquivo
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const handleConfirmImport = async () => {
+    if (importedNames.length === 0) return;
+
+    try {
+      // Inserir todos os pacientes com cartão SUS vazio
+      const pacientesToInsert = importedNames.map(nome => ({
+        nome_completo: nome,
+        cartao_sus: '', // Deixar vazio para o usuário preencher depois
+      }));
+
+      const { error } = await supabase.from('pacientes_auto_custo').insert(pacientesToInsert);
+      
+      if (error) throw error;
+
+      toast({ 
+        title: "Importação Concluída", 
+        description: `${importedNames.length} paciente(s) importado(s). Complete os dados pendentes.` 
+      });
+      setIsImportDialogOpen(false);
+      setImportedNames([]);
+      loadData();
+    } catch (error) {
+      console.error('Erro ao importar:', error);
+      toast({ title: "Erro", description: "Erro ao importar pacientes.", variant: "destructive" });
+    }
+  };
+
   const formatDate = (dateString: string) => {
     try {
       return format(new Date(dateString), "dd/MM/yyyy HH:mm", { locale: ptBR });
@@ -544,6 +614,9 @@ const GestaoAutoCusto = () => {
     return authStatus.status === 'vencida' || authStatus.status === 'vence_em_breve';
   }).length;
 
+  // Conta pacientes com dados incompletos
+  const pacientesIncompletos = pacientes.filter(p => !p.cartao_sus || p.cartao_sus.trim() === '').length;
+
   const getStatusBadge = (status: string | null) => {
     switch (status) {
       case 'disponivel':
@@ -557,18 +630,35 @@ const GestaoAutoCusto = () => {
 
   return (
     <div className="space-y-6">
-      {/* Alerta de Renovações Pendentes */}
-      {alertasRenovacao > 0 && (
-        <Card className="border-yellow-500 bg-yellow-50 dark:bg-yellow-900/20">
-          <CardContent className="py-4">
-            <div className="flex items-center gap-3">
-              <AlertTriangle className="h-5 w-5 text-yellow-600" />
-              <p className="text-yellow-800 dark:text-yellow-200 font-medium">
-                {alertasRenovacao} autorização(ões) precisa(m) de renovação!
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+      {/* Alertas */}
+      {(alertasRenovacao > 0 || pacientesIncompletos > 0) && (
+        <div className="space-y-3">
+          {alertasRenovacao > 0 && (
+            <Card className="border-yellow-500 bg-yellow-50 dark:bg-yellow-900/20">
+              <CardContent className="py-4">
+                <div className="flex items-center gap-3">
+                  <AlertTriangle className="h-5 w-5 text-yellow-600" />
+                  <p className="text-yellow-800 dark:text-yellow-200 font-medium">
+                    {alertasRenovacao} autorização(ões) precisa(m) de renovação!
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+          
+          {pacientesIncompletos > 0 && (
+            <Card className="border-orange-500 bg-orange-50 dark:bg-orange-900/20">
+              <CardContent className="py-4">
+                <div className="flex items-center gap-3">
+                  <AlertCircle className="h-5 w-5 text-orange-600" />
+                  <p className="text-orange-800 dark:text-orange-200 font-medium">
+                    {pacientesIncompletos} paciente(s) com dados incompletos! Clique no ícone de edição para completar.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
       )}
 
       <Tabs defaultValue="pacientes" className="space-y-4">
@@ -655,7 +745,20 @@ const GestaoAutoCusto = () => {
             </CardContent>
           </Card>
 
-          <div className="flex justify-end gap-2">
+          <div className="flex justify-end gap-2 flex-wrap">
+            {/* Input hidden para importação */}
+            <input
+              type="file"
+              ref={fileInputRef}
+              accept=".xlsx,.xls"
+              onChange={handleImportExcel}
+              className="hidden"
+            />
+            <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
+              <Upload className="h-4 w-4 mr-2" />
+              Importar Excel
+            </Button>
+
             <Dialog open={isPacDialogOpen} onOpenChange={setIsPacDialogOpen}>
               <DialogTrigger asChild>
                 <Button onClick={() => { setEditingPac(null); setPacForm({ nome_completo: '', cartao_sus: '' }); }}>
@@ -809,14 +912,32 @@ const GestaoAutoCusto = () => {
                 .map((paciente) => {
                   const pacVinculos = getVinculosForPaciente(paciente.id);
                   return (
-                    <Card key={paciente.id}>
+                    <Card key={paciente.id} className={!paciente.cartao_sus || paciente.cartao_sus.trim() === '' ? 'border-yellow-500 border-2' : ''}>
                       <CardHeader className="pb-2">
                         <div className="flex justify-between items-start">
-                          <div>
-                            <CardTitle className="text-lg">{paciente.nome_completo}</CardTitle>
-                            <CardDescription className="flex items-center gap-2 mt-1">
-                              <Badge variant="outline" className="font-mono">{paciente.cartao_sus}</Badge>
-                            </CardDescription>
+                          <div className="flex items-center gap-2">
+                            {(!paciente.cartao_sus || paciente.cartao_sus.trim() === '') && (
+                              <span title="Dados incompletos">
+                                <AlertCircle className="h-5 w-5 text-yellow-500" />
+                              </span>
+                            )}
+                            <div>
+                              <CardTitle className="text-lg flex items-center gap-2">
+                                {paciente.nome_completo}
+                                {(!paciente.cartao_sus || paciente.cartao_sus.trim() === '') && (
+                                  <Badge variant="outline" className="text-xs bg-yellow-500/10 text-yellow-600 border-yellow-500/50">
+                                    Incompleto
+                                  </Badge>
+                                )}
+                              </CardTitle>
+                              <CardDescription className="flex items-center gap-2 mt-1">
+                                {paciente.cartao_sus && paciente.cartao_sus.trim() !== '' ? (
+                                  <Badge variant="outline" className="font-mono">{paciente.cartao_sus}</Badge>
+                                ) : (
+                                  <Badge variant="outline" className="font-mono text-yellow-600 border-yellow-500/50">Cartão SUS não informado</Badge>
+                                )}
+                              </CardDescription>
+                            </div>
                           </div>
                           <div className="flex gap-2">
                             <Button size="sm" variant="outline" onClick={() => {
@@ -873,7 +994,7 @@ const GestaoAutoCusto = () => {
                                   </div>
 
                                   {/* Info de autorização */}
-                                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
+                                  <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-sm">
                                     <div className="flex items-center gap-1 text-muted-foreground">
                                       <Calendar className="h-3 w-3" />
                                       <span>Autorizado: {v.data_autorizacao ? formatDateOnly(v.data_autorizacao) : 'N/D'}</span>
@@ -881,6 +1002,10 @@ const GestaoAutoCusto = () => {
                                     <div className="flex items-center gap-1 text-muted-foreground">
                                       <Clock className="h-3 w-3" />
                                       <span>Duração: {v.duracao_meses || 3} meses</span>
+                                    </div>
+                                    <div className="flex items-center gap-1 font-medium text-primary">
+                                      <Calendar className="h-3 w-3" />
+                                      <span>Vence: {v.data_autorizacao ? formatDateOnly(addMonths(new Date(v.data_autorizacao), v.duracao_meses || 3).toISOString()) : 'N/D'}</span>
                                     </div>
                                     <div className="flex items-center gap-1">
                                       <Package className="h-3 w-3" />
@@ -896,6 +1021,12 @@ const GestaoAutoCusto = () => {
                                       <Badge className="bg-yellow-500 text-xs">
                                         <AlertTriangle className="h-3 w-3 mr-1" />
                                         Vence em {authStatus.daysLeft} dias
+                                      </Badge>
+                                    )}
+                                    {authStatus.status === 'valida' && (
+                                      <Badge variant="outline" className="text-xs bg-green-500/10 text-green-600 border-green-500/20">
+                                        <CheckCircle className="h-3 w-3 mr-1" />
+                                        No Prazo
                                       </Badge>
                                     )}
                                   </div>
@@ -1490,6 +1621,61 @@ const GestaoAutoCusto = () => {
               setLotesForm([{ lote: '', validade: '', quantidade: '' }]);
             }}>Cancelar</Button>
             <Button onClick={handleSaveLotes}>Salvar Lotes</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog de Importação Excel */}
+      <Dialog open={isImportDialogOpen} onOpenChange={setIsImportDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Upload className="h-5 w-5" />
+              Importar Pacientes
+            </DialogTitle>
+            <DialogDescription>
+              {importedNames.length} nome(s) encontrado(s) no arquivo. Os pacientes serão importados com dados incompletos para você preencher depois.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3">
+              <div className="flex items-center gap-2 text-yellow-600 font-medium text-sm">
+                <AlertCircle className="h-4 w-4" />
+                Atenção
+              </div>
+              <p className="text-sm text-muted-foreground mt-1">
+                Os pacientes serão importados apenas com o nome. Você precisará completar o Cartão SUS e vincular medicamentos depois.
+              </p>
+            </div>
+            
+            <div className="max-h-60 overflow-y-auto border rounded-lg p-2">
+              <p className="text-xs text-muted-foreground mb-2">Nomes a serem importados:</p>
+              <div className="space-y-1">
+                {importedNames.slice(0, 50).map((name, idx) => (
+                  <div key={idx} className="text-sm flex items-center gap-2 p-1.5 bg-muted/50 rounded">
+                    <User className="h-3 w-3 text-muted-foreground" />
+                    {name}
+                  </div>
+                ))}
+                {importedNames.length > 50 && (
+                  <p className="text-xs text-muted-foreground mt-2">
+                    ... e mais {importedNames.length - 50} nome(s)
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setIsImportDialogOpen(false);
+              setImportedNames([]);
+            }}>
+              Cancelar
+            </Button>
+            <Button onClick={handleConfirmImport}>
+              <Upload className="h-4 w-4 mr-2" />
+              Importar {importedNames.length} Paciente(s)
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
