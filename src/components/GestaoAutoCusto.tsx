@@ -9,9 +9,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Edit2, Trash2, User, Pill, Package, CheckCircle, Search, Calendar, FileText, Filter, X, AlertTriangle } from 'lucide-react';
+import { Plus, Edit2, Trash2, User, Pill, Package, CheckCircle, Search, Calendar, FileText, Filter, X, AlertTriangle, Clock, RefreshCw, XCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { format, isPast, isBefore, addDays } from 'date-fns';
+import { format, isPast, isBefore, addDays, addMonths, differenceInDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 interface LoteMedicamento {
@@ -42,6 +42,10 @@ interface PacienteMedicamento {
   paciente_id: string;
   medicamento_id: string;
   disponivel_retirada: boolean;
+  data_autorizacao: string | null;
+  duracao_meses: number | null;
+  status_medicamento: string | null;
+  dispensacoes_realizadas: number | null;
   paciente?: Paciente;
   medicamento?: Medicamento;
 }
@@ -71,6 +75,7 @@ const GestaoAutoCusto = () => {
   const [searchMedicamento, setSearchMedicamento] = useState('');
   const [filterCartaoSUS, setFilterCartaoSUS] = useState('');
   const [filterMedicamento, setFilterMedicamento] = useState('');
+  const [filterStatus, setFilterStatus] = useState('');
   const [reportFilterNome, setReportFilterNome] = useState('');
   const [reportFilterCartao, setReportFilterCartao] = useState('');
   const [reportFilterMed, setReportFilterMed] = useState('');
@@ -81,6 +86,7 @@ const GestaoAutoCusto = () => {
   const [isVinculoDialogOpen, setIsVinculoDialogOpen] = useState(false);
   const [isEntregaDialogOpen, setIsEntregaDialogOpen] = useState(false);
   const [isLoteDialogOpen, setIsLoteDialogOpen] = useState(false);
+  const [isEditVinculoDialogOpen, setIsEditVinculoDialogOpen] = useState(false);
 
   // Form states
   const [editingMed, setEditingMed] = useState<Medicamento | null>(null);
@@ -88,12 +94,20 @@ const GestaoAutoCusto = () => {
   const [selectedPacienteId, setSelectedPacienteId] = useState<string>('');
   const [selectedMedicamentoId, setSelectedMedicamentoId] = useState<string>('');
   const [selectedVinculo, setSelectedVinculo] = useState<PacienteMedicamento | null>(null);
+  const [editingVinculo, setEditingVinculo] = useState<PacienteMedicamento | null>(null);
   const [entregaObs, setEntregaObs] = useState('');
   const [selectedMedForLote, setSelectedMedForLote] = useState<Medicamento | null>(null);
 
   const [medForm, setMedForm] = useState({ nome: '', descricao: '' });
   const [pacForm, setPacForm] = useState({ nome_completo: '', cartao_sus: '' });
   const [lotesForm, setLotesForm] = useState<LoteForm[]>([{ lote: '', validade: '', quantidade: '' }]);
+  
+  // Vinculo form with new fields
+  const [vinculoForm, setVinculoForm] = useState({
+    data_autorizacao: '',
+    duracao_meses: '3',
+    status_medicamento: 'aguardando'
+  });
 
   const { toast } = useToast();
 
@@ -300,6 +314,11 @@ const GestaoAutoCusto = () => {
       return;
     }
 
+    if (!vinculoForm.data_autorizacao) {
+      toast({ title: "Erro", description: "Data de autorização é obrigatória.", variant: "destructive" });
+      return;
+    }
+
     const exists = vinculos.find(v => v.paciente_id === selectedPacienteId && v.medicamento_id === selectedMedicamentoId);
     if (exists) {
       toast({ title: "Atenção", description: "Este vínculo já existe.", variant: "destructive" });
@@ -311,25 +330,81 @@ const GestaoAutoCusto = () => {
         paciente_id: selectedPacienteId,
         medicamento_id: selectedMedicamentoId,
         disponivel_retirada: false,
+        data_autorizacao: vinculoForm.data_autorizacao,
+        duracao_meses: parseInt(vinculoForm.duracao_meses),
+        status_medicamento: vinculoForm.status_medicamento,
+        dispensacoes_realizadas: 0,
       });
       toast({ title: "Sucesso", description: "Medicamento vinculado ao paciente." });
       setIsVinculoDialogOpen(false);
       setSelectedPacienteId('');
       setSelectedMedicamentoId('');
+      setVinculoForm({ data_autorizacao: '', duracao_meses: '3', status_medicamento: 'aguardando' });
       loadData();
     } catch (error) {
       toast({ title: "Erro", description: "Erro ao criar vínculo.", variant: "destructive" });
     }
   };
 
-  const handleToggleDisponibilidade = async (vinculoId: string, atual: boolean) => {
+  const handleUpdateVinculo = async () => {
+    if (!editingVinculo) return;
+
     try {
       await supabase.from('paciente_medicamento').update({
-        disponivel_retirada: !atual,
+        data_autorizacao: vinculoForm.data_autorizacao || null,
+        duracao_meses: parseInt(vinculoForm.duracao_meses),
+        status_medicamento: vinculoForm.status_medicamento,
+      }).eq('id', editingVinculo.id);
+      
+      toast({ title: "Sucesso", description: "Vínculo atualizado." });
+      setIsEditVinculoDialogOpen(false);
+      setEditingVinculo(null);
+      setVinculoForm({ data_autorizacao: '', duracao_meses: '3', status_medicamento: 'aguardando' });
+      loadData();
+    } catch (error) {
+      toast({ title: "Erro", description: "Erro ao atualizar vínculo.", variant: "destructive" });
+    }
+  };
+
+  const handleToggleStatus = async (vinculoId: string, currentStatus: string) => {
+    const newStatus = currentStatus === 'disponivel' ? 'aguardando' : 
+                      currentStatus === 'em_falta' ? 'disponivel' : 
+                      currentStatus === 'aguardando' ? 'disponivel' : 'aguardando';
+    try {
+      await supabase.from('paciente_medicamento').update({
+        status_medicamento: newStatus,
+        disponivel_retirada: newStatus === 'disponivel',
       }).eq('id', vinculoId);
       loadData();
     } catch (error) {
-      toast({ title: "Erro", description: "Erro ao atualizar disponibilidade.", variant: "destructive" });
+      toast({ title: "Erro", description: "Erro ao atualizar status.", variant: "destructive" });
+    }
+  };
+
+  const handleSetEmFalta = async (vinculoId: string) => {
+    try {
+      await supabase.from('paciente_medicamento').update({
+        status_medicamento: 'em_falta',
+        disponivel_retirada: false,
+      }).eq('id', vinculoId);
+      toast({ title: "Status atualizado", description: "Medicamento marcado como em falta." });
+      loadData();
+    } catch (error) {
+      toast({ title: "Erro", description: "Erro ao atualizar status.", variant: "destructive" });
+    }
+  };
+
+  const handleRenovarAutorizacao = async (vinculoId: string, duracaoMeses: number) => {
+    try {
+      const today = format(new Date(), 'yyyy-MM-dd');
+      await supabase.from('paciente_medicamento').update({
+        data_autorizacao: today,
+        dispensacoes_realizadas: 0,
+      }).eq('id', vinculoId);
+      toast({ title: "Renovado", description: `Autorização renovada por ${duracaoMeses} meses.` });
+      loadData();
+    } catch (error) {
+      toast({ title: "Erro", description: "Erro ao renovar autorização.", variant: "destructive" });
     }
   };
 
@@ -354,11 +429,16 @@ const GestaoAutoCusto = () => {
         observacao: entregaObs || null,
       });
 
+      // Incrementar dispensações realizadas
+      const novasDispensacoes = (selectedVinculo.dispensacoes_realizadas || 0) + 1;
+      
       await supabase.from('paciente_medicamento').update({
         disponivel_retirada: false,
+        status_medicamento: 'aguardando',
+        dispensacoes_realizadas: novasDispensacoes,
       }).eq('id', selectedVinculo.id);
 
-      toast({ title: "Entrega Registrada", description: "Medicamento marcado como entregue." });
+      toast({ title: "Entrega Registrada", description: `Dispensação ${novasDispensacoes} registrada.` });
       setIsEntregaDialogOpen(false);
       setSelectedVinculo(null);
       setEntregaObs('');
@@ -392,6 +472,28 @@ const GestaoAutoCusto = () => {
 
   const isExpired = (validade: string) => {
     return isPast(new Date(validade));
+  };
+
+  // Calcula se autorização está vencida ou próxima de vencer
+  const getAuthorizationStatus = (dataAutorizacao: string | null, duracaoMeses: number | null) => {
+    if (!dataAutorizacao || !duracaoMeses) return { status: 'indefinido', daysLeft: null };
+    
+    const authDate = new Date(dataAutorizacao);
+    const expirationDate = addMonths(authDate, duracaoMeses);
+    const today = new Date();
+    const daysLeft = differenceInDays(expirationDate, today);
+    
+    if (daysLeft < 0) return { status: 'vencida', daysLeft };
+    if (daysLeft <= 15) return { status: 'vence_em_breve', daysLeft };
+    return { status: 'ativa', daysLeft };
+  };
+
+  // Verifica dispensações restantes
+  const getDispensationInfo = (duracaoMeses: number | null, dispensacoesRealizadas: number | null) => {
+    const totalDispensacoes = duracaoMeses === 6 ? 6 : 3;
+    const realizadas = dispensacoesRealizadas || 0;
+    const restantes = totalDispensacoes - realizadas;
+    return { total: totalDispensacoes, realizadas, restantes };
   };
 
   // Filtros
@@ -436,8 +538,39 @@ const GestaoAutoCusto = () => {
     setReportFilterMed('');
   };
 
+  // Conta alertas de renovação
+  const alertasRenovacao = vinculos.filter(v => {
+    const authStatus = getAuthorizationStatus(v.data_autorizacao, v.duracao_meses);
+    return authStatus.status === 'vencida' || authStatus.status === 'vence_em_breve';
+  }).length;
+
+  const getStatusBadge = (status: string | null) => {
+    switch (status) {
+      case 'disponivel':
+        return <Badge className="bg-green-500 hover:bg-green-600">Disponível</Badge>;
+      case 'em_falta':
+        return <Badge variant="destructive">Em Falta</Badge>;
+      default:
+        return <Badge variant="secondary">Aguardando</Badge>;
+    }
+  };
+
   return (
     <div className="space-y-6">
+      {/* Alerta de Renovações Pendentes */}
+      {alertasRenovacao > 0 && (
+        <Card className="border-yellow-500 bg-yellow-50 dark:bg-yellow-900/20">
+          <CardContent className="py-4">
+            <div className="flex items-center gap-3">
+              <AlertTriangle className="h-5 w-5 text-yellow-600" />
+              <p className="text-yellow-800 dark:text-yellow-200 font-medium">
+                {alertasRenovacao} autorização(ões) precisa(m) de renovação!
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <Tabs defaultValue="pacientes" className="space-y-4">
         <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="pacientes" className="flex items-center gap-2">
@@ -468,7 +601,7 @@ const GestaoAutoCusto = () => {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="relative">
                   <Label className="text-xs text-muted-foreground mb-1 block">Nome ou Cartão SUS</Label>
                   <div className="relative">
@@ -500,6 +633,21 @@ const GestaoAutoCusto = () => {
                       {medicamentos.map(m => (
                         <SelectItem key={m.id} value={m.id}>{m.nome}</SelectItem>
                       ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground mb-1 block">Filtrar por Status</Label>
+                  <Select value={filterStatus} onValueChange={setFilterStatus}>
+                    <SelectTrigger className="bg-background">
+                      <SelectValue placeholder="Todos os status" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-background border shadow-lg z-50">
+                      <SelectItem value="all">Todos</SelectItem>
+                      <SelectItem value="disponivel">Disponível</SelectItem>
+                      <SelectItem value="aguardando">Aguardando</SelectItem>
+                      <SelectItem value="em_falta">Em Falta</SelectItem>
+                      <SelectItem value="renovar">Precisa Renovar</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -545,14 +693,17 @@ const GestaoAutoCusto = () => {
 
             <Dialog open={isVinculoDialogOpen} onOpenChange={setIsVinculoDialogOpen}>
               <DialogTrigger asChild>
-                <Button variant="outline">
+                <Button variant="outline" onClick={() => {
+                  setVinculoForm({ data_autorizacao: '', duracao_meses: '3', status_medicamento: 'aguardando' });
+                }}>
                   <Plus className="h-4 w-4 mr-2" />
                   Vincular Medicamento
                 </Button>
               </DialogTrigger>
-              <DialogContent>
+              <DialogContent className="max-w-lg">
                 <DialogHeader>
                   <DialogTitle>Vincular Medicamento a Paciente</DialogTitle>
+                  <DialogDescription>Configure a autorização do medicamento para o paciente.</DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4">
                   <div>
@@ -581,6 +732,41 @@ const GestaoAutoCusto = () => {
                       </SelectContent>
                     </Select>
                   </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label>Data da Autorização</Label>
+                      <Input
+                        type="date"
+                        value={vinculoForm.data_autorizacao}
+                        onChange={(e) => setVinculoForm({ ...vinculoForm, data_autorizacao: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <Label>Duração (meses)</Label>
+                      <Select value={vinculoForm.duracao_meses} onValueChange={(v) => setVinculoForm({ ...vinculoForm, duracao_meses: v })}>
+                        <SelectTrigger className="bg-background">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="bg-background border shadow-lg z-50">
+                          <SelectItem value="3">3 meses</SelectItem>
+                          <SelectItem value="6">6 meses</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div>
+                    <Label>Status Inicial</Label>
+                    <Select value={vinculoForm.status_medicamento} onValueChange={(v) => setVinculoForm({ ...vinculoForm, status_medicamento: v })}>
+                      <SelectTrigger className="bg-background">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="bg-background border shadow-lg z-50">
+                        <SelectItem value="aguardando">Aguardando</SelectItem>
+                        <SelectItem value="disponivel">Disponível</SelectItem>
+                        <SelectItem value="em_falta">Em Falta</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
                 <DialogFooter>
                   <Button variant="outline" onClick={() => setIsVinculoDialogOpen(false)}>Cancelar</Button>
@@ -601,9 +787,24 @@ const GestaoAutoCusto = () => {
             ) : (
               filteredPacientes
                 .filter(p => {
-                  if (!filterMedicamento || filterMedicamento === 'all') return true;
+                  if (!filterMedicamento || filterMedicamento === 'all') {
+                    if (!filterStatus || filterStatus === 'all') return true;
+                  }
                   const pacVinculos = getVinculosForPaciente(p.id);
-                  return pacVinculos.some(v => v.medicamento_id === filterMedicamento);
+                  
+                  let matchMed = !filterMedicamento || filterMedicamento === 'all' || pacVinculos.some(v => v.medicamento_id === filterMedicamento);
+                  
+                  if (filterStatus && filterStatus !== 'all') {
+                    if (filterStatus === 'renovar') {
+                      return pacVinculos.some(v => {
+                        const authStatus = getAuthorizationStatus(v.data_autorizacao, v.duracao_meses);
+                        return authStatus.status === 'vencida' || authStatus.status === 'vence_em_breve';
+                      }) && matchMed;
+                    }
+                    return pacVinculos.some(v => v.status_medicamento === filterStatus) && matchMed;
+                  }
+                  
+                  return matchMed;
                 })
                 .map((paciente) => {
                   const pacVinculos = getVinculosForPaciente(paciente.id);
@@ -635,39 +836,115 @@ const GestaoAutoCusto = () => {
                         {pacVinculos.length === 0 ? (
                           <p className="text-sm text-muted-foreground">Nenhum medicamento vinculado.</p>
                         ) : (
-                          <div className="space-y-2">
-                            {pacVinculos.map((v) => (
-                              <div key={v.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                                <div className="flex items-center gap-3">
-                                  <Pill className="h-4 w-4 text-primary" />
-                                  <span className="text-sm font-medium">{v.medicamento?.nome}</span>
-                                  <Badge variant={v.disponivel_retirada ? "default" : "secondary"} className={v.disponivel_retirada ? "bg-success" : ""}>
-                                    {v.disponivel_retirada ? "Disponível" : "Aguardando"}
-                                  </Badge>
+                          <div className="space-y-3">
+                            {pacVinculos.map((v) => {
+                              const authStatus = getAuthorizationStatus(v.data_autorizacao, v.duracao_meses);
+                              const dispInfo = getDispensationInfo(v.duracao_meses, v.dispensacoes_realizadas);
+                              
+                              return (
+                                <div key={v.id} className="p-4 bg-muted/50 rounded-lg space-y-3">
+                                  {/* Header do medicamento */}
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                      <Pill className="h-4 w-4 text-primary" />
+                                      <span className="font-medium">{v.medicamento?.nome}</span>
+                                      {getStatusBadge(v.status_medicamento)}
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                      <Button 
+                                        size="sm" 
+                                        variant="ghost"
+                                        onClick={() => {
+                                          setEditingVinculo(v);
+                                          setVinculoForm({
+                                            data_autorizacao: v.data_autorizacao || '',
+                                            duracao_meses: String(v.duracao_meses || 3),
+                                            status_medicamento: v.status_medicamento || 'aguardando'
+                                          });
+                                          setIsEditVinculoDialogOpen(true);
+                                        }}
+                                      >
+                                        <Edit2 className="h-3 w-3" />
+                                      </Button>
+                                      <Button size="sm" variant="ghost" onClick={() => handleDeleteVinculo(v.id)}>
+                                        <Trash2 className="h-3 w-3" />
+                                      </Button>
+                                    </div>
+                                  </div>
+
+                                  {/* Info de autorização */}
+                                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
+                                    <div className="flex items-center gap-1 text-muted-foreground">
+                                      <Calendar className="h-3 w-3" />
+                                      <span>Autorizado: {v.data_autorizacao ? formatDateOnly(v.data_autorizacao) : 'N/D'}</span>
+                                    </div>
+                                    <div className="flex items-center gap-1 text-muted-foreground">
+                                      <Clock className="h-3 w-3" />
+                                      <span>Duração: {v.duracao_meses || 3} meses</span>
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                      <Package className="h-3 w-3" />
+                                      <span>Dispensações: {dispInfo.realizadas}/{dispInfo.total}</span>
+                                    </div>
+                                    {authStatus.status === 'vencida' && (
+                                      <Badge variant="destructive" className="text-xs">
+                                        <AlertTriangle className="h-3 w-3 mr-1" />
+                                        Autorização Vencida
+                                      </Badge>
+                                    )}
+                                    {authStatus.status === 'vence_em_breve' && (
+                                      <Badge className="bg-yellow-500 text-xs">
+                                        <AlertTriangle className="h-3 w-3 mr-1" />
+                                        Vence em {authStatus.daysLeft} dias
+                                      </Badge>
+                                    )}
+                                  </div>
+
+                                  {/* Ações */}
+                                  <div className="flex flex-wrap gap-2 pt-2 border-t">
+                                    <Button 
+                                      size="sm" 
+                                      variant={v.status_medicamento === 'disponivel' ? "default" : "outline"}
+                                      onClick={() => handleToggleStatus(v.id, v.status_medicamento || 'aguardando')}
+                                    >
+                                      <CheckCircle className="h-3 w-3 mr-1" />
+                                      {v.status_medicamento === 'disponivel' ? 'Disponível' : 'Marcar Disponível'}
+                                    </Button>
+                                    <Button 
+                                      size="sm" 
+                                      variant={v.status_medicamento === 'em_falta' ? "destructive" : "outline"}
+                                      onClick={() => handleSetEmFalta(v.id)}
+                                    >
+                                      <XCircle className="h-3 w-3 mr-1" />
+                                      Em Falta
+                                    </Button>
+                                    <Button 
+                                      size="sm" 
+                                      variant="outline"
+                                      disabled={v.status_medicamento !== 'disponivel'}
+                                      onClick={() => {
+                                        setSelectedVinculo(v);
+                                        setIsEntregaDialogOpen(true);
+                                      }}
+                                    >
+                                      <Package className="h-3 w-3 mr-1" />
+                                      Registrar Entrega
+                                    </Button>
+                                    {(authStatus.status === 'vencida' || authStatus.status === 'vence_em_breve') && (
+                                      <Button 
+                                        size="sm" 
+                                        variant="outline"
+                                        className="border-yellow-500 text-yellow-600 hover:bg-yellow-50"
+                                        onClick={() => handleRenovarAutorizacao(v.id, v.duracao_meses || 3)}
+                                      >
+                                        <RefreshCw className="h-3 w-3 mr-1" />
+                                        Renovar Autorização
+                                      </Button>
+                                    )}
+                                  </div>
                                 </div>
-                                <div className="flex items-center gap-2">
-                                  <Switch
-                                    checked={v.disponivel_retirada}
-                                    onCheckedChange={() => handleToggleDisponibilidade(v.id, v.disponivel_retirada)}
-                                  />
-                                  <Button 
-                                    size="sm" 
-                                    variant="outline"
-                                    disabled={!v.disponivel_retirada}
-                                    onClick={() => {
-                                      setSelectedVinculo(v);
-                                      setIsEntregaDialogOpen(true);
-                                    }}
-                                  >
-                                    <CheckCircle className="h-3 w-3 mr-1" />
-                                    Entregar
-                                  </Button>
-                                  <Button size="sm" variant="ghost" onClick={() => handleDeleteVinculo(v.id)}>
-                                    <Trash2 className="h-3 w-3" />
-                                  </Button>
-                                </div>
-                              </div>
-                            ))}
+                              );
+                            })}
                           </div>
                         )}
                       </CardContent>
@@ -865,7 +1142,7 @@ const GestaoAutoCusto = () => {
                                         Vence em breve
                                       </Badge>
                                     ) : (
-                                      <Badge variant="outline" className="text-xs bg-success/10 text-success border-success/20">
+                                      <Badge variant="outline" className="text-xs bg-green-500/10 text-green-600 border-green-500/20">
                                         OK
                                       </Badge>
                                     )}
@@ -922,7 +1199,7 @@ const GestaoAutoCusto = () => {
                           <p className="text-xs text-muted-foreground mt-1">Obs: {entrega.observacao}</p>
                         )}
                       </div>
-                      <Badge variant="outline" className="bg-success/10 text-success border-success/20">
+                      <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20">
                         <CheckCircle className="h-3 w-3 mr-1" />
                         Entregue
                       </Badge>
@@ -1038,6 +1315,11 @@ const GestaoAutoCusto = () => {
             <DialogTitle>Registrar Entrega</DialogTitle>
             <DialogDescription>
               Confirme a entrega do medicamento ao paciente.
+              {selectedVinculo && (
+                <div className="mt-2 p-2 bg-muted rounded text-sm">
+                  Dispensação {(selectedVinculo.dispensacoes_realizadas || 0) + 1} de {selectedVinculo.duracao_meses === 6 ? 6 : 3}
+                </div>
+              )}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -1056,10 +1338,64 @@ const GestaoAutoCusto = () => {
               setSelectedVinculo(null);
               setEntregaObs('');
             }}>Cancelar</Button>
-            <Button onClick={handleRegistrarEntrega} className="bg-success hover:bg-success/90">
+            <Button onClick={handleRegistrarEntrega} className="bg-green-600 hover:bg-green-700">
               <CheckCircle className="h-4 w-4 mr-2" />
               Confirmar Entrega
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog de Editar Vínculo */}
+      <Dialog open={isEditVinculoDialogOpen} onOpenChange={setIsEditVinculoDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Editar Autorização</DialogTitle>
+            <DialogDescription>Atualize os dados da autorização do medicamento.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Data da Autorização</Label>
+                <Input
+                  type="date"
+                  value={vinculoForm.data_autorizacao}
+                  onChange={(e) => setVinculoForm({ ...vinculoForm, data_autorizacao: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label>Duração (meses)</Label>
+                <Select value={vinculoForm.duracao_meses} onValueChange={(v) => setVinculoForm({ ...vinculoForm, duracao_meses: v })}>
+                  <SelectTrigger className="bg-background">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-background border shadow-lg z-50">
+                    <SelectItem value="3">3 meses</SelectItem>
+                    <SelectItem value="6">6 meses</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div>
+              <Label>Status do Medicamento</Label>
+              <Select value={vinculoForm.status_medicamento} onValueChange={(v) => setVinculoForm({ ...vinculoForm, status_medicamento: v })}>
+                <SelectTrigger className="bg-background">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-background border shadow-lg z-50">
+                  <SelectItem value="aguardando">Aguardando</SelectItem>
+                  <SelectItem value="disponivel">Disponível</SelectItem>
+                  <SelectItem value="em_falta">Em Falta</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setIsEditVinculoDialogOpen(false);
+              setEditingVinculo(null);
+            }}>Cancelar</Button>
+            <Button onClick={handleUpdateVinculo}>Salvar</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

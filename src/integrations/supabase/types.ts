@@ -259,24 +259,36 @@ export type Database = {
       paciente_medicamento: {
         Row: {
           created_at: string
+          data_autorizacao: string | null
+          dispensacoes_realizadas: number | null
           disponivel_retirada: boolean
+          duracao_meses: number | null
           id: string
           medicamento_id: string
           paciente_id: string
+          status_medicamento: string | null
         }
         Insert: {
           created_at?: string
+          data_autorizacao?: string | null
+          dispensacoes_realizadas?: number | null
           disponivel_retirada?: boolean
+          duracao_meses?: number | null
           id?: string
           medicamento_id: string
           paciente_id: string
+          status_medicamento?: string | null
         }
         Update: {
           created_at?: string
+          data_autorizacao?: string | null
+          dispensacoes_realizadas?: number | null
           disponivel_retirada?: boolean
+          duracao_meses?: number | null
           id?: string
           medicamento_id?: string
           paciente_id?: string
+          status_medicamento?: string | null
         }
         Relationships: [
           {
