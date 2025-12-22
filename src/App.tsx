@@ -3,7 +3,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
@@ -13,6 +13,15 @@ import NotFound from "./pages/NotFound";
 import PWAInstallPrompt from "./components/PWAInstallPrompt";
 import { AuthProvider } from "./hooks/useAuth";
 import { ChatWidget } from "./components/ChatWidget";
+
+// Wrapper para ocultar ChatWidget no Dashboard
+const ChatWidgetWrapper = () => {
+  const location = useLocation();
+  const isDashboard = location.pathname === '/dashboard';
+  
+  if (isDashboard) return null;
+  return <ChatWidget />;
+};
 
 
 const queryClient = new QueryClient();
@@ -33,7 +42,7 @@ const App = () => (
             <Route path="*" element={<NotFound />} />
           </Routes>
           <PWAInstallPrompt />
-          <ChatWidget />
+          <ChatWidgetWrapper />
         </BrowserRouter>
       </AuthProvider>
     </TooltipProvider>
