@@ -11,7 +11,6 @@ import ConsultaSUS from "./pages/ConsultaSUS";
 import NotFound from "./pages/NotFound";
 import PWAInstallPrompt from "./components/PWAInstallPrompt";
 import { AuthProvider } from "./hooks/useAuth";
-import { ChatWidget } from '@/components/ChatWidget';
 
 
 const queryClient = new QueryClient();
@@ -32,7 +31,6 @@ const App = () => (
             <Route path="*" element={<NotFound />} />
           </Routes>
           <PWAInstallPrompt />
-          <ChatWidget />
         </BrowserRouter>
       </AuthProvider>
     </TooltipProvider>
