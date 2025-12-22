@@ -1,0 +1,197 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
+All colors MUST be HSL.
+*/
+
+@layer base {
+  :root {
+    --background: 0 0% 98%;
+    --foreground: 120 25% 15%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 120 25% 15%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 120 25% 15%;
+
+    --primary: 120 90% 15%;
+    --primary-foreground: 0 0% 98%;
+
+    --secondary: 120 15% 92%;
+    --secondary-foreground: 120 25% 15%;
+
+    --muted: 120 10% 95%;
+    --muted-foreground: 120 15% 45%;
+
+    --accent: 120 20% 88%;
+    --accent-foreground: 120 25% 15%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 120 20% 85%;
+    --input: 120 15% 90%;
+    --ring: 120 85% 20%;
+    
+    --success: 120 70% 25%;
+    --success-foreground: 0 0% 98%;
+    
+    --warning: 45 85% 55%;
+    --warning-foreground: 0 0% 98%;
+    
+    --info: 200 85% 45%;
+    --info-foreground: 0 0% 98%;
+    
+    --gradient-primary: linear-gradient(135deg, hsl(var(--primary)), hsl(120 80% 18%));
+    --gradient-secondary: linear-gradient(135deg, hsl(var(--accent)), hsl(var(--secondary)));
+    --gradient-hero: linear-gradient(135deg, hsl(120 90% 15%), hsl(120 80% 18%), hsl(120 90% 15%));
+    
+    --shadow-elegant: 0 4px 20px hsl(120 90% 15% / 0.15);
+    --shadow-card: 0 2px 8px hsl(120 90% 15% / 0.1);
+    --shadow-logo: 0 2px 10px hsl(120 90% 15% / 0.2);
+
+    --radius: 0.5rem;
+
+    --sidebar-background: 0 0% 98%;
+
+    --sidebar-foreground: 240 5.3% 26.1%;
+
+    --sidebar-primary: 240 5.9% 10%;
+
+    --sidebar-primary-foreground: 0 0% 98%;
+
+    --sidebar-accent: 240 4.8% 95.9%;
+
+    --sidebar-accent-foreground: 240 5.9% 10%;
+
+    --sidebar-border: 220 13% 91%;
+
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+
+  .dark {
+    --background: 120 25% 8%;
+    --foreground: 120 10% 92%;
+
+    --card: 120 25% 10%;
+    --card-foreground: 120 10% 92%;
+
+    --popover: 120 25% 10%;
+    --popover-foreground: 120 10% 92%;
+
+    --primary: 120 80% 35%;
+    --primary-foreground: 120 25% 8%;
+
+    --secondary: 120 20% 18%;
+    --secondary-foreground: 120 10% 92%;
+
+    --muted: 120 20% 18%;
+    --muted-foreground: 120 15% 65%;
+
+    --accent: 120 30% 25%;
+    --accent-foreground: 120 10% 92%;
+
+    --destructive: 0 62.8% 50%;
+    --destructive-foreground: 120 10% 92%;
+
+    --border: 120 20% 18%;
+    --input: 120 20% 18%;
+    --ring: 120 75% 40%;
+    
+    --success: 120 70% 40%;
+    --success-foreground: 120 25% 8%;
+    
+    --warning: 45 85% 60%;
+    --warning-foreground: 120 25% 8%;
+    
+    --info: 200 85% 55%;
+    --info-foreground: 120 25% 8%;
+    
+    --gradient-primary: linear-gradient(135deg, hsl(var(--primary)), hsl(120 70% 38%));
+    --gradient-secondary: linear-gradient(135deg, hsl(var(--accent)), hsl(var(--secondary)));
+    --gradient-hero: linear-gradient(135deg, hsl(120 80% 35%), hsl(120 70% 38%), hsl(120 80% 35%));
+    
+    --shadow-elegant: 0 4px 20px hsl(120 90% 15% / 0.3);
+    --shadow-card: 0 2px 8px hsl(120 90% 15% / 0.2);
+    --shadow-logo: 0 2px 10px hsl(120 90% 15% / 0.4);
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+    touch-action: manipulation;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    -webkit-text-size-adjust: 100%;
+    -ms-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  input,
+  select,
+  textarea,
+  button {
+    font-size: 16px;
+  }
+}
+
+/* Prevent iOS zoom on input focus - only in Safari browser, not in PWA */
+@media not all and (display-mode: standalone) {
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="search"],
+  input[type="tel"],
+  input[type="url"],
+  input[type="number"],
+  textarea,
+  select {
+    font-size: 16px !important;
+    -webkit-text-size-adjust: 100%;
+  }
+}
+
+/* PWA Install Prompt Animations */
+@keyframes slide-in-from-bottom {
+  0% {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes fade-in {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+.animate-in {
+  animation: fade-in 0.3s ease-out;
+}
+
+.slide-in-from-bottom-4 {
+  animation: slide-in-from-bottom 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+

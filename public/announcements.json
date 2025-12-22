@@ -1,0 +1,15 @@
+{
+  "announcements": [
+    {
+      "id": "2025-10-22-v1",
+      "version": "1.3.0",
+      "title": "Atualização 1.3.0",
+      "message": "Melhoramos performance e corrigimos bugs menores.",
+      "type": "info",
+      "audience": "all",
+      "startAt": "2025-10-22T00:00:00Z",
+      "endAt": "2025-10-29T00:00:00Z",
+      "cta": { "label": "Ver detalhes", "href": "/changelog" }
+    }
+  ]
+}
