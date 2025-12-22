@@ -581,9 +581,9 @@ const GestaoAutoCusto = () => {
             <Pill className="h-4 w-4" />
             Medicamentos
           </TabsTrigger>
-          <TabsTrigger value="entregas" className="flex items-center gap-2">
+          <TabsTrigger value="dispensacao" className="flex items-center gap-2">
             <Package className="h-4 w-4" />
-            Entregas
+            Dispensação
           </TabsTrigger>
           <TabsTrigger value="relatorio" className="flex items-center gap-2">
             <FileText className="h-4 w-4" />
@@ -1166,11 +1166,11 @@ const GestaoAutoCusto = () => {
           </div>
         </TabsContent>
 
-        {/* Tab Entregas */}
-        <TabsContent value="entregas" className="space-y-4">
+        {/* Tab Dispensação */}
+        <TabsContent value="dispensacao" className="space-y-4">
           <h3 className="text-lg font-semibold flex items-center gap-2">
-            <Calendar className="h-5 w-5" />
-            Últimas Entregas
+            <Package className="h-5 w-5" />
+            Dispensações Realizadas
           </h3>
           
           <div className="space-y-2">
@@ -1273,13 +1273,15 @@ const GestaoAutoCusto = () => {
                       <th className="text-left p-3 font-medium">Paciente</th>
                       <th className="text-left p-3 font-medium">Cartão SUS</th>
                       <th className="text-left p-3 font-medium">Medicamento</th>
+                      <th className="text-left p-3 font-medium">Vencimento</th>
+                      <th className="text-left p-3 font-medium">Status Prazo</th>
                       <th className="text-left p-3 font-medium">Observação</th>
                     </tr>
                   </thead>
                   <tbody>
                     {filteredEntregas.length === 0 ? (
                       <tr>
-                        <td colSpan={5} className="p-8 text-center text-muted-foreground">
+                        <td colSpan={7} className="p-8 text-center text-muted-foreground">
                           Nenhuma entrega encontrada com os filtros selecionados.
                         </td>
                       </tr>
@@ -1288,6 +1290,10 @@ const GestaoAutoCusto = () => {
                         const vinculo = vinculos.find(v => v.id === entrega.paciente_medicamento_id);
                         const paciente = pacientes.find(p => p.id === vinculo?.paciente_id);
                         const medicamento = medicamentos.find(m => m.id === vinculo?.medicamento_id);
+                        const authStatus = vinculo ? getAuthorizationStatus(vinculo.data_autorizacao, vinculo.duracao_meses) : null;
+                        const dataVencimento = vinculo?.data_autorizacao && vinculo?.duracao_meses 
+                          ? formatDateOnly(addMonths(new Date(vinculo.data_autorizacao), vinculo.duracao_meses).toISOString())
+                          : '-';
 
                         return (
                           <tr key={entrega.id} className="border-t hover:bg-muted/30">
@@ -1295,6 +1301,25 @@ const GestaoAutoCusto = () => {
                             <td className="p-3 font-medium">{paciente?.nome_completo || '-'}</td>
                             <td className="p-3 font-mono text-xs">{paciente?.cartao_sus || '-'}</td>
                             <td className="p-3">{medicamento?.nome || '-'}</td>
+                            <td className="p-3">{dataVencimento}</td>
+                            <td className="p-3">
+                              {authStatus?.status === 'valida' && (
+                                <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20">
+                                  No Prazo
+                                </Badge>
+                              )}
+                              {authStatus?.status === 'vence_em_breve' && (
+                                <Badge className="bg-yellow-500">
+                                  Vence em {authStatus.daysLeft} dias
+                                </Badge>
+                              )}
+                              {authStatus?.status === 'vencida' && (
+                                <Badge variant="destructive">
+                                  Vencida
+                                </Badge>
+                              )}
+                              {!authStatus && <span className="text-muted-foreground">-</span>}
+                            </td>
                             <td className="p-3 text-muted-foreground">{entrega.observacao || '-'}</td>
                           </tr>
                         );
