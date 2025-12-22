@@ -45,6 +45,7 @@ const AdminDashboard = () => {
   const [reportHistory, setReportHistory] = useState<UpdateCheckHistory[]>([]);
   const [isCorrectionLoading, setIsCorrectionLoading] = useState(false);
   const [consultaSUSAtiva, setConsultaSUSAtiva] = useState(false);
+  const [showAutoCusto, setShowAutoCusto] = useState(false);
   
   // Modal States
   const [isUBSDialogOpen, setIsUBSDialogOpen] = useState(false);
@@ -414,6 +415,31 @@ const AdminDashboard = () => {
     }
   };
 
+  // Se showAutoCusto está ativo, renderiza tela cheia do Alto Custo
+  if (showAutoCusto) {
+    return (
+      <div className="fixed inset-0 z-50 bg-background overflow-auto">
+        <div className="sticky top-0 z-10 bg-background border-b border-border p-3 sm:p-4 flex items-center justify-between">
+          <h1 className="text-lg sm:text-xl md:text-2xl font-bold text-primary flex items-center gap-2">
+            <Pill className="h-5 w-5 sm:h-6 sm:w-6" />
+            Gestão de Medicamentos Alto Custo
+          </h1>
+          <Button 
+            variant="outline" 
+            size="icon"
+            onClick={() => setShowAutoCusto(false)}
+            className="h-9 w-9 sm:h-10 sm:w-10"
+          >
+            <X className="h-5 w-5" />
+          </Button>
+        </div>
+        <div className="p-3 sm:p-4 md:p-6">
+          <GestaoAutoCusto />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4 sm:space-y-6">
       <div className="flex flex-col gap-3 sm:gap-4">
@@ -455,7 +481,14 @@ const AdminDashboard = () => {
               </Badge>
             )}
           </TabsTrigger>
-          <TabsTrigger value="gestao-auto-custo" className="flex items-center justify-center gap-1 sm:gap-2 py-1.5 sm:py-2 text-xs sm:text-sm">
+          <TabsTrigger 
+            value="gestao-auto-custo" 
+            className="flex items-center justify-center gap-1 sm:gap-2 py-1.5 sm:py-2 text-xs sm:text-sm"
+            onClick={(e) => {
+              e.preventDefault();
+              setShowAutoCusto(true);
+            }}
+          >
             <Pill className="h-3 w-3 sm:h-4 sm:w-4" />
             <span className="hidden xs:inline sm:inline">Alto Custo</span>
           </TabsTrigger>

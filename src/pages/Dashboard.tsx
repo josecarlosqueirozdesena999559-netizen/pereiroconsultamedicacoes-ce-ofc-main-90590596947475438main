@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import AdminDashboard from '@/components/AdminDashboard';
 import UserDashboard from '@/components/UserDashboard';
