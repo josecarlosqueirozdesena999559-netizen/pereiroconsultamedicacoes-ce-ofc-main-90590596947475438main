@@ -48,31 +48,33 @@ const UserDashboard = () => {
     const isWeekday = dayOfWeek >= 1 && dayOfWeek <= 5;
     const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
     
-    let canUploadManha = false;
-    let canUploadTarde = false;
+    // Determina qual período estamos baseado no horário
+    let currentPeriod: 'manha' | 'tarde' | null = null;
+    let isWithinSchedule = false;
     let currentPeriodLabel = "";
     let scheduleMessage = "";
     
     if (isWeekend) {
       scheduleMessage = "Uploads não disponíveis nos finais de semana.";
     } else if (isFriday) {
-      const canUploadOnFriday = hour >= 7 && hour < 17;
-      canUploadManha = canUploadOnFriday;
-      canUploadTarde = canUploadOnFriday;
-      if (canUploadOnFriday) {
+      isWithinSchedule = hour >= 7 && hour < 17;
+      if (isWithinSchedule) {
+        // Na sexta, considera ambos os períodos
+        currentPeriod = hour < 12 ? 'manha' : 'tarde';
         currentPeriodLabel = "Manhã + Tarde";
         scheduleMessage = "Sexta: Upload único conta como manhã e tarde (07h-17h)";
       } else {
         scheduleMessage = "Fora do horário (Sexta: 07h-17h)";
       }
     } else if (isWeekday) {
-      canUploadManha = hour >= 7 && hour < 12;
-      canUploadTarde = hour >= 12 && hour < 17;
-      
       if (hour >= 7 && hour < 12) {
+        currentPeriod = 'manha';
+        isWithinSchedule = true;
         currentPeriodLabel = "Manhã";
         scheduleMessage = "Período da manhã (07h-11h)";
       } else if (hour >= 12 && hour < 17) {
+        currentPeriod = 'tarde';
+        isWithinSchedule = true;
         currentPeriodLabel = "Tarde";
         scheduleMessage = "Período da tarde (12h-17h)";
       } else {
@@ -83,9 +85,8 @@ const UserDashboard = () => {
     return {
       isFriday,
       isWeekend,
-      canUploadManha,
-      canUploadTarde,
-      canUpload: canUploadManha || canUploadTarde,
+      isWithinSchedule,
+      currentPeriod,
       currentPeriodLabel,
       scheduleMessage,
     };
@@ -149,15 +150,17 @@ const UserDashboard = () => {
         const manhaChecked = currentChecks?.manha || false;
         const tardeChecked = currentChecks?.tarde || false;
         
-        const { isFriday, canUploadManha, canUploadTarde } = getUploadScheduleInfo;
+        const { isFriday, currentPeriod } = getUploadScheduleInfo;
         
         if (isFriday) {
+          // Na sexta, um upload marca ambos os períodos
           if (!manhaChecked) await saveUpdateCheck(user.id, ubsId, "manha");
           if (!tardeChecked) await saveUpdateCheck(user.id, ubsId, "tarde");
-        } else {
-          if (canUploadManha && !manhaChecked) {
+        } else if (currentPeriod) {
+          // Marca apenas o período atual
+          if (currentPeriod === 'manha' && !manhaChecked) {
             await saveUpdateCheck(user.id, ubsId, "manha");
-          } else if (canUploadTarde && !tardeChecked) {
+          } else if (currentPeriod === 'tarde' && !tardeChecked) {
             await saveUpdateCheck(user.id, ubsId, "tarde");
           }
         }
@@ -238,7 +241,23 @@ const UserDashboard = () => {
                   const manhaChecked = updateChecks[ubs.id]?.manha || false;
                   const tardeChecked = updateChecks[ubs.id]?.tarde || false;
                   const complete = isComplete(ubs.id);
-                  const { canUpload, currentPeriodLabel, scheduleMessage } = getUploadScheduleInfo;
+                  const { isWithinSchedule, currentPeriod, currentPeriodLabel, scheduleMessage, isFriday } = getUploadScheduleInfo;
+                  
+                  // Verifica se pode fazer upload no período atual
+                  // Se estamos de manhã e já fez upload de manhã -> bloqueado
+                  // Se estamos à tarde e já fez upload à tarde -> bloqueado
+                  // Na sexta, se já fez qualquer upload -> bloqueado
+                  let canUploadNow = isWithinSchedule;
+                  if (canUploadNow) {
+                    if (isFriday) {
+                      // Na sexta, se já fez upload (manha ou tarde marcado), bloqueia
+                      canUploadNow = !manhaChecked && !tardeChecked;
+                    } else if (currentPeriod === 'manha') {
+                      canUploadNow = !manhaChecked;
+                    } else if (currentPeriod === 'tarde') {
+                      canUploadNow = !tardeChecked;
+                    }
+                  }
 
                   return (
                     <Card key={ubs.id} className={complete ? "border-green-300 bg-green-50/50 dark:bg-green-950/10" : ""}>
@@ -305,7 +324,7 @@ const UserDashboard = () => {
                         <div className="flex flex-col gap-2">
                           <Button
                             onClick={() => triggerFileInput(ubs.id)}
-                            disabled={uploadingUBS === ubs.id || complete || !canUpload}
+                            disabled={uploadingUBS === ubs.id || complete || !canUploadNow}
                             className="w-full"
                             variant={complete ? "outline" : "default"}
                           >
@@ -314,8 +333,10 @@ const UserDashboard = () => {
                               ? "Enviando..."
                               : complete
                               ? "Atualização completa"
-                              : !canUpload
+                              : !isWithinSchedule
                               ? "Fora do horário"
+                              : !canUploadNow
+                              ? `${currentPeriod === 'manha' ? 'Manhã' : 'Tarde'} já enviado`
                               : `Enviar PDF${currentPeriodLabel ? ` (${currentPeriodLabel})` : ""}`}
                           </Button>
 
