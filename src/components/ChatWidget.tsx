@@ -28,7 +28,7 @@ export function ChatWidget() {
   const [selectedPosto, setSelectedPosto] = useState<{ id: string; nome: string; localidade: string } | null>(null);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  
+
   const { postos, loading: loadingPostos, searchPostos } = usePostos();
   const { resolveMedicamentoQuery, searchMedicamentoWithAI, getPdfUrl, loading: searchingMed } = useMedicamentos();
 
@@ -109,12 +109,14 @@ export function ChatWidget() {
       case 'ask_medicamento':
         if (!selectedPosto) return;
 
+        // Validação: não permitir busca com apenas números
         const hasOnlyNumbers = /^\d+$/.test(userInput);
         if (hasOnlyNumbers) {
           addMessage('⚠️ Por favor, digite o **nome** do medicamento (ex: Paracetamol, Dipirona). Números não são aceitos para busca.', true);
           return;
         }
 
+        // Resolve o melhor termo para o PDF (prefixo, marca->substância, e correção de erro de digitação)
         let queryForPdf = userInput;
         try {
           queryForPdf = await resolveMedicamentoQuery(selectedPosto.id, userInput);
@@ -130,6 +132,7 @@ export function ChatWidget() {
         );
 
         if (pdfResponse.encontrado && pdfResponse.medicamentos.length > 0) {
+          // Verifica se o usuário buscou por marca/termo diferente do nome do medicamento
           const userTermNorm = userInput.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
           const firstMedNorm = pdfResponse.medicamentos[0]?.nome?.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '') || '';
           const searchedByBrand = userTermNorm && !firstMedNorm.startsWith(userTermNorm.split(' ')[0]);
@@ -206,16 +209,17 @@ export function ChatWidget() {
 
   return (
     <>
+      {/* Floating bubble with label */}
       <div className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-50 flex flex-col items-end gap-2">
         {!isOpen && (
-          <div 
+          <div
             onClick={openChat}
             className="bg-primary text-primary-foreground px-3 py-2 rounded-full text-xs sm:text-sm font-medium shadow-lg cursor-pointer hover:bg-accent transition-colors animate-bounce max-w-[200px] sm:max-w-none text-center"
           >
             💊 Consulte medicamentos
           </div>
         )}
-        
+
         <button
           onClick={() => isOpen ? setIsOpen(false) : openChat()}
           className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-primary text-primary-foreground shadow-lg hover:bg-accent transition-all duration-300 flex items-center justify-center"
@@ -225,8 +229,10 @@ export function ChatWidget() {
         </button>
       </div>
 
+      {/* Chat window */}
       {isOpen && (
         <div className="fixed bottom-20 sm:bottom-24 right-2 sm:right-6 left-2 sm:left-auto z-50 sm:w-[380px] h-[70vh] sm:h-[520px] max-h-[520px] bg-background rounded-2xl shadow-2xl border border-border flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 duration-300">
+          {/* Header */}
           <div className="bg-primary text-primary-foreground p-4 flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-primary-foreground/20 flex items-center justify-center">
               <MessageCircle className="w-5 h-5" />
@@ -237,6 +243,7 @@ export function ChatWidget() {
             </div>
           </div>
 
+          {/* Messages */}
           <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-muted/30">
             {messages.map((msg) => (
               <div
@@ -251,7 +258,8 @@ export function ChatWidget() {
                   }`}
                 >
                   {msg.text}
-                  
+
+                  {/* Postos list buttons */}
                   {msg.postosList && msg.postosList.length > 0 && (
                     <div className="mt-3 space-y-2">
                       {msg.postosList.map((posto) => (
@@ -266,7 +274,8 @@ export function ChatWidget() {
                       ))}
                     </div>
                   )}
-                  
+
+                  {/* Medicamentos com lotes detalhados */}
                   {msg.medicamentosAI && msg.medicamentosAI.length > 0 && (
                     <div className="mt-3 bg-background rounded-lg overflow-hidden border-2 border-primary/30 shadow-sm">
                       <div className="bg-primary/10 px-3 py-2 border-b border-primary/20">
@@ -275,6 +284,7 @@ export function ChatWidget() {
                       <div className="divide-y divide-border">
                         {msg.medicamentosAI.map((med, i) => (
                           <div key={i} className="p-3">
+                            {/* Nome e código do medicamento */}
                             <div className="font-bold text-primary text-sm mb-1">
                               💊 {med.nome}
                             </div>
@@ -286,7 +296,8 @@ export function ChatWidget() {
                                 Unidade: <span className="font-medium text-foreground">{med.unidade}</span>
                               </div>
                             )}
-                            
+
+                            {/* Lista de lotes */}
                             {med.lotes && med.lotes.length > 0 && (
                               <div className="space-y-2 mb-2">
                                 <div className="text-xs font-medium text-muted-foreground">
@@ -297,7 +308,8 @@ export function ChatWidget() {
                                 </div>
                               </div>
                             )}
-                            
+
+                            {/* Total */}
                             <div className="pt-2 border-t border-border">
                               <div className="flex justify-between items-center text-xs">
                                 <span className="text-muted-foreground">Total (conforme PDF):</span>
@@ -322,6 +334,7 @@ export function ChatWidget() {
             <div ref={messagesEndRef} />
           </div>
 
+          {/* Input */}
           <div className="p-3 border-t border-border bg-background">
             <div className="flex gap-2">
               <input
