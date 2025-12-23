@@ -26,6 +26,7 @@ interface MedicamentoAI {
 
 interface AIResponse {
   encontrado: boolean;
+  podeEstarEsgotado?: boolean;
   mensagem: string;
   medicamentos: MedicamentoAI[];
 }
@@ -37,7 +38,12 @@ export function useMedicamentos() {
   const [error, setError] = useState<string | null>(null);
 
   const normalize = (s: string) =>
-    s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim();
+    s
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
 
   const levenshtein = (a: string, b: string) => {
     if (a === b) return 0;
@@ -51,11 +57,7 @@ export function useMedicamentos() {
     for (let i = 1; i <= a.length; i++) {
       for (let j = 1; j <= b.length; j++) {
         const cost = a[i - 1] === b[j - 1] ? 0 : 1;
-        dp[i][j] = Math.min(
-          dp[i - 1][j] + 1,
-          dp[i][j - 1] + 1,
-          dp[i - 1][j - 1] + cost
-        );
+        dp[i][j] = Math.min(dp[i - 1][j] + 1, dp[i][j - 1] + 1, dp[i - 1][j - 1] + cost);
       }
     }
 
@@ -76,28 +78,46 @@ export function useMedicamentos() {
 
     const meds = (data || []) as Array<{ nome: string; marcas?: string[] | null }>;
 
-    const matchByPrefixOrBrand = meds.filter((med) => {
-      const nomeNorm = normalize(med.nome);
-      const matchNome = token ? nomeNorm.startsWith(token) : false;
-
+    // 1) Se o usuário digitou uma MARCA (nome comercial), mapeia para o princípio ativo.
+    // Importante: devolvemos um termo CURTO (primeiro token do nome) para aumentar a chance de match no PDF.
+    for (const med of meds) {
       const marcas = med.marcas || [];
-      const matchMarca = marcas.some((marcaItem) => {
-        const palavrasMarca = normalize(marcaItem).split(' ');
-        return palavrasMarca.some((palavra) => palavra.startsWith(token) || token.startsWith(palavra));
-      });
+      for (const marca of marcas) {
+        const marcaNorm = normalize(marca);
+        if (!marcaNorm) continue;
 
-      return matchNome || matchMarca;
-    });
+        const left = marcaNorm.slice(0, normalizedQuery.length);
+        const typoDist = levenshtein(left, normalizedQuery);
 
-    if (matchByPrefixOrBrand.length >= 2) return query;
+        const isMatch =
+          marcaNorm === normalizedQuery ||
+          marcaNorm.startsWith(normalizedQuery) ||
+          normalizedQuery.startsWith(marcaNorm) ||
+          typoDist <= 1;
 
-    if (matchByPrefixOrBrand.length === 1) {
-      const resolvedNome = matchByPrefixOrBrand[0].nome?.trim();
-      const resolvedToken = resolvedNome ? normalize(resolvedNome).split(' ')[0] : '';
-      const isBrandMapping = resolvedToken && !resolvedToken.startsWith(token);
-      return isBrandMapping ? resolvedNome : query;
+        if (isMatch) {
+          const nomeToken = normalize(med.nome).split(' ')[0];
+          return nomeToken || med.nome.trim() || query;
+        }
+      }
     }
 
+    // 2) Prefixo no nome do medicamento (princípio ativo digitado)
+    const matchByPrefix = meds.filter((med) => {
+      const nomeNorm = normalize(med.nome);
+      return token ? nomeNorm.startsWith(token) : false;
+    });
+
+    if (matchByPrefix.length >= 2) return query;
+
+    if (matchByPrefix.length === 1) {
+      const resolvedNome = matchByPrefix[0].nome?.trim();
+      const resolvedToken = resolvedNome ? normalize(resolvedNome).split(' ')[0] : '';
+      const isBrandMapping = resolvedToken && !resolvedToken.startsWith(token);
+      return isBrandMapping ? resolvedToken || resolvedNome : query;
+    }
+
+    // 3) Correção de erros de digitação (Levenshtein)
     let best: { dist: number; nomeToken: string } | null = null;
 
     for (const med of meds) {
@@ -108,16 +128,6 @@ export function useMedicamentos() {
       const distNome = levenshtein(token, compareNome);
 
       if (!best || distNome < best.dist) best = { dist: distNome, nomeToken };
-
-      for (const marcaItem of med.marcas || []) {
-        const palavras = normalize(marcaItem).split(' ');
-        for (const w of palavras) {
-          if (!w) continue;
-          const compareW = w.slice(0, token.length) || w;
-          const distW = levenshtein(token, compareW);
-          if (distW < (best?.dist ?? Number.POSITIVE_INFINITY)) best = { dist: distW, nomeToken };
-        }
-      }
     }
 
     const threshold = token.length <= 4 ? 1 : token.length <= 7 ? 2 : 3;
@@ -125,6 +135,32 @@ export function useMedicamentos() {
 
     const suggested = token.length <= 6 ? best.nomeToken.slice(0, 4) || best.nomeToken : best.nomeToken;
     return suggested;
+  };
+
+  const searchMedicamento = async (postoId: string, query: string): Promise<Medicamento[]> => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const normalizedQuery = normalize(query);
+      const firstToken = normalizedQuery.split(' ')[0];
+
+      const { data, error } = await supabase.from('medicamentos').select('*').eq('posto_id', postoId);
+
+      if (error) throw error;
+
+      const filtered = (data || []).filter((med) => {
+        const normalizedNome = normalize(med.nome);
+        return firstToken ? normalizedNome.startsWith(firstToken) : false;
+      });
+
+      return filtered;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao buscar medicamentos');
+      return [];
+    } finally {
+      setLoading(false);
+    }
   };
 
   const searchMedicamentoWithAI = async (
@@ -153,7 +189,7 @@ export function useMedicamentos() {
       return {
         encontrado: false,
         mensagem: 'Desculpe, não foi possível ler o PDF deste posto no momento. Por favor, tente novamente.',
-        medicamentos: []
+        medicamentos: [],
       };
     } finally {
       setLoading(false);
@@ -177,5 +213,5 @@ export function useMedicamentos() {
     }
   };
 
-  return { resolveMedicamentoQuery, searchMedicamentoWithAI, getPdfUrl, loading, error };
+  return { resolveMedicamentoQuery, searchMedicamento, searchMedicamentoWithAI, getPdfUrl, loading, error };
 }
