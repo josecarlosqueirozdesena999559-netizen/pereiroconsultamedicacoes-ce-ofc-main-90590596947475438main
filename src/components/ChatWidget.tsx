@@ -141,7 +141,10 @@ export function ChatWidget() {
           }
           addMessage(`✅ ${msg}`, true, pdfResponse.medicamentos);
         } else {
-          addMessage(pdfResponse.mensagem || `Não encontrei "${userInput}" no PDF deste posto.`, true);
+          addMessage(
+            `❌ "${userInput}" não está disponível no estoque atual do ${selectedPosto.nome}.`,
+            true
+          );
         }
 
         setTimeout(() => {
