@@ -137,22 +137,35 @@ export type Database = {
         Row: {
           data_entrega: string
           id: string
+          lote_id: string | null
           observacao: string | null
           paciente_medicamento_id: string
+          quantidade: number
         }
         Insert: {
           data_entrega?: string
           id?: string
+          lote_id?: string | null
           observacao?: string | null
           paciente_medicamento_id: string
+          quantidade?: number
         }
         Update: {
           data_entrega?: string
           id?: string
+          lote_id?: string | null
           observacao?: string | null
           paciente_medicamento_id?: string
+          quantidade?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "entregas_medicamento_lote_id_fkey"
+            columns: ["lote_id"]
+            isOneToOne: false
+            referencedRelation: "lotes_medicamento"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "entregas_medicamento_paciente_medicamento_id_fkey"
             columns: ["paciente_medicamento_id"]
@@ -241,18 +254,27 @@ export type Database = {
           descricao: string | null
           id: string
           nome: string
+          quantidade_por_unidade: number
+          tipo_embalagem: string
+          unidade_base: string
         }
         Insert: {
           created_at?: string
           descricao?: string | null
           id?: string
           nome: string
+          quantidade_por_unidade?: number
+          tipo_embalagem?: string
+          unidade_base?: string
         }
         Update: {
           created_at?: string
           descricao?: string | null
           id?: string
           nome?: string
+          quantidade_por_unidade?: number
+          tipo_embalagem?: string
+          unidade_base?: string
         }
         Relationships: []
       }
@@ -266,7 +288,9 @@ export type Database = {
           id: string
           medicamento_id: string
           paciente_id: string
+          quantidade_por_dispensacao: number
           status_medicamento: string | null
+          unidade: string
         }
         Insert: {
           created_at?: string
@@ -277,7 +301,9 @@ export type Database = {
           id?: string
           medicamento_id: string
           paciente_id: string
+          quantidade_por_dispensacao?: number
           status_medicamento?: string | null
+          unidade?: string
         }
         Update: {
           created_at?: string
@@ -288,7 +314,9 @@ export type Database = {
           id?: string
           medicamento_id?: string
           paciente_id?: string
+          quantidade_por_dispensacao?: number
           status_medicamento?: string | null
+          unidade?: string
         }
         Relationships: [
           {
